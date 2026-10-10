@@ -1,11 +1,11 @@
 rules_version = '2';
 // ドットパックのセキュリティルール
-// YOUR_ADMIN_UID を、管理者（もとはしさん）の Google アカウントの UID に書き換えてから公開してください。
+// 管理者（もとはしさん）の Google アカウントの UID を isAdmin() に書いてあります。
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.uid == 'YOUR_ADMIN_UID'; }
+    function isAdmin() { return signedIn() && request.auth.uid == 'b16Uw9nyrsYrMGApVt9cYWoQgqV2'; }
     function isGoogle() { return signedIn() && ('google.com' in request.auth.token.firebase.identities); }
     function themeDoc(tid) { return get(/databases/$(database)/documents/themes/$(tid)); }
     function isStr(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }

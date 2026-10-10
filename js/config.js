@@ -10,7 +10,7 @@ export const firebaseConfig = {
 
 /* 管理者（もとはしさん）の Google アカウントの UID。
    admin.html に Google でログインすると画面に表示されます。firestore.rules にも同じ値を書きます。 */
-export const ADMIN_UID = 'YOUR_ADMIN_UID';
+export const ADMIN_UID = 'b16Uw9nyrsYrMGApVt9cYWoQgqV2';
 
 /* パックを開けられる回数
    PACK_CHARGE_HOURS 時間ごとに1回ふえて、PACK_MAX 回までたまる。
