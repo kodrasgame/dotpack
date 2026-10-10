@@ -1,0 +1,116 @@
+rules_version = '2';
+// ドットパックのセキュリティルール
+// YOUR_ADMIN_UID を、管理者（もとはしさん）の Google アカウントの UID に書き換えてから公開してください。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.uid == 'YOUR_ADMIN_UID'; }
+    function isGoogle() { return signedIn() && ('google.com' in request.auth.token.firebase.identities); }
+    function themeDoc(tid) { return get(/databases/$(database)/documents/themes/$(tid)); }
+    function isStr(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+
+    // テーマ（月ごとのお題とパレット）
+    match /themes/{tid} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // 投稿のときだけ、だれでも通し番号を1つ進められる
+      allow update: if isAdmin() || (signedIn()
+        && resource.data.status == 'open'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seq'])
+        && request.resource.data.seq == resource.data.seq + 1);
+
+      // カード
+      match /cards/{cid} {
+        allow read: if true;
+        allow create: if signedIn()
+          && themeDoc(tid).data.status == 'open'
+          && request.resource.data.keys().hasOnly(['uid', 'tid', 'tno', 'no', 'by', 'name', 'text', 'p', 'px', 'fan', 'base', 'baseNo', 'hidden', 'deleted', 'anon', 'createdAt', 'updatedAt'])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.tid == tid
+          && request.resource.data.tno == themeDoc(tid).data.no
+          && request.resource.data.no == getAfter(/databases/$(database)/documents/themes/$(tid)).data.seq
+          && isStr(request.resource.data.by, 1, 12)
+          && isStr(request.resource.data.name, 1, 16)
+          && isStr(request.resource.data.text, 0, 18)
+          && request.resource.data.p in [0, 1, 2]
+          && request.resource.data.px is string && request.resource.data.px.matches('^[0-9a-f]{1024}$')
+          && request.resource.data.fan is bool
+          && (request.resource.data.base == null || isStr(request.resource.data.base, 1, 64))
+          && (request.resource.data.baseNo == null || isStr(request.resource.data.baseNo, 1, 20))
+          && request.resource.data.hidden == false
+          && request.resource.data.deleted == false
+          && request.resource.data.anon == false
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        // 作者は受付中だけ自分の作品を消せる（消した印を付ける）
+        allow update: if isAdmin() || (signedIn()
+          && resource.data.uid == request.auth.uid
+          && themeDoc(tid).data.status == 'open'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'updatedAt'])
+          && request.resource.data.deleted == true
+          && request.resource.data.updatedAt == request.time);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // 投票：1人1テーマ1件。中身は本人と管理者だけが読める
+    match /votes/{vid} {
+      allow read: if isAdmin() || (signedIn() && vid.matches('^[A-Za-z0-9]+_' + request.auth.uid + '$'));
+      allow create, update: if signedIn()
+        && vid == request.resource.data.tid + '_' + request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'tid', 'google', 'v', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.google == isGoogle()
+        && request.resource.data.v is map && request.resource.data.v.size() <= 2000
+        && themeDoc(request.resource.data.tid).data.status == 'open'
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    // Google連携した人のデータ（作者名・集めたカード）
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'owned', 'charge', 'rew', 'updatedAt'])
+        && isStr(request.resource.data.name, 0, 12)
+        && request.resource.data.owned is map && request.resource.data.owned.size() <= 20000
+        && (!('charge' in request.resource.data) || (request.resource.data.charge is map && request.resource.data.charge.keys().hasOnly(['n', 't', 'b'])))
+        && (!('rew' in request.resource.data) || (request.resource.data.rew is map && request.resource.data.rew.size() <= 20000));
+    }
+
+    // お問い合わせ：だれでも送れる。読めるのは管理者だけ
+    match /requests/{rid} {
+      allow read, update, delete: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.at == request.time
+        && request.resource.data.done == false
+        && (
+          (request.resource.data.type == 'ad'
+            && request.resource.data.keys().hasOnly(['type', 'uid', 'at', 'done', 'name', 'mail', 'body'])
+            && isStr(request.resource.data.name, 1, 60)
+            && isStr(request.resource.data.mail, 3, 120)
+            && isStr(request.resource.data.body, 1, 300))
+          ||
+          (request.resource.data.type in ['del', 'hide']
+            && request.resource.data.keys().hasOnly(['type', 'uid', 'at', 'done', 'tid', 'cid', 'no', 'reason'])
+            && isStr(request.resource.data.tid, 1, 64)
+            && isStr(request.resource.data.cid, 1, 64)
+            && isStr(request.resource.data.no, 1, 20)
+            && exists(/databases/$(database)/documents/themes/$(request.resource.data.tid)/cards/$(request.resource.data.cid))
+            && (
+              (request.resource.data.type == 'del' && request.resource.data.reason in ['own', 'rights', 'copy', 'nsfw', 'abuse', 'spam'])
+              ||
+              (request.resource.data.type == 'hide' && request.resource.data.reason in ['quit', 'trouble', 'other']
+                && get(/databases/$(database)/documents/themes/$(request.resource.data.tid)/cards/$(request.resource.data.cid)).data.uid == request.auth.uid)
+            ))
+        );
+    }
+
+    // 管理者用の設定（票の重みなど）
+    match /config/{id} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

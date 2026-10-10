@@ -1,0 +1,24 @@
+@echo off
+rem ドットパックをこのパソコンで確認するためのファイル（ダブルクリックで起動）
+cd /d "%~dp0"
+set PORT=8000
+
+echo.
+echo  ドットパック かんたん確認
+echo  ----------------------------------------
+echo   1 : Firebaseなしで試す（確認モード。データはブラウザの中だけ）
+echo   2 : Firebaseにつないで試す（js\config.js を書いたあと）
+echo   3 : 管理画面を開く（確認モード）
+echo.
+choice /c 123 /n /m "番号を選んでください [1/2/3]: "
+if errorlevel 3 (set OPEN=admin.html?mock& goto run)
+if errorlevel 2 (set OPEN=index.html?mock=0& goto run)
+set OPEN=index.html?mock
+
+:run
+echo.
+echo  ブラウザで http://localhost:%PORT%/%OPEN% を開きます。
+echo  終わるときは、この黒い画面を閉じてください。
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\serve.ps1" -Port %PORT% -Open "%OPEN%"
+pause

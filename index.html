@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ドットパック</title>
+<meta name="description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<link rel="preload" href="fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <p class="logo">ドットパック</p>
+    <button class="plus" id="plusBtn" aria-label="カードをつくる"><span aria-hidden="true">＋</span>つくる</button>
+  </div>
+
+  <header>
+    <div>
+      <div class="theme-lbl" id="thLbl"></div>
+      <h1 class="theme-name" id="thName"></h1>
+    </div>
+    <div class="theme-meta" id="thMeta"></div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="vote">投票</button>
+    <button role="tab" data-tab="packs">パック</button>
+    <button role="tab" data-tab="dex">図鑑</button>
+  </nav>
+
+  <section id="tab-make" hidden>
+    <p class="empty" id="makeClosed" hidden>いまは投稿を受け付けていません。次のテーマをお待ちください。</p>
+    <div class="make" id="makeBody">
+      <div>
+        <div class="basebox" id="baseBox" hidden>
+          <img id="baseImg" alt="">
+          <div><small>元にした作品</small><b id="baseName"></b><span id="baseNo"></span></div>
+          <button class="linkbtn" id="baseClear">外す</button>
+        </div>
+        <div class="pals" id="pals"></div>
+        <div class="cv-wrap"><div class="cv-view" id="cvView"><canvas id="cv" width="512" height="512"></canvas></div></div>
+        <div class="tools" id="tools">
+          <button class="tool" data-tool="pen">ペン</button>
+          <button class="tool" data-tool="fill">塗りつぶし</button>
+          <button class="tool" data-tool="erase">消しゴム</button>
+          <button class="tool" data-tool="move">移動</button>
+          <button class="tool" id="undo">戻す</button>
+          <button class="tool" id="clear">ぜんぶ消す</button>
+          <span class="zoom"><button class="tool" id="zOut" aria-label="縮小">－</button><output id="zLbl">×1</output><button class="tool" id="zIn" aria-label="拡大">＋</button></span>
+        </div>
+        <div class="pal" id="pal"></div>
+      </div>
+      <div class="side">
+        <div id="preview"></div>
+        <div>
+          <div class="field" style="margin-top:0"><label for="fBy">作者名</label><input id="fBy" maxlength="12" autocomplete="nickname" placeholder="ななしさん"></div>
+          <div class="field"><label for="fName">名前<span id="nameCnt" class="cntr"></span></label><input id="fName" autocomplete="off"></div>
+          <div class="field"><label for="fText">ひとこと（なくてもOK）</label><input id="fText" maxlength="18" autocomplete="off"></div>
+          <label class="chk" for="fFan"><input type="checkbox" id="fFan"><span>既存のキャラを描いた<small>パックには入りません</small></span></label>
+          <p class="err" id="mkErr"></p>
+          <button class="btn primary" id="submit" style="width:100%">投稿する</button>
+          <p class="agree">投稿すると<button class="linkbtn" data-terms>利用規約</button>に同意したことになります。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-vote" hidden>
+    <p class="note" id="voteNote"></p>
+    <div class="grid" id="voteGrid"></div>
+  </section>
+
+  <section id="tab-packs" hidden>
+    <p class="note" id="packCharge" hidden></p>
+    <div class="packs" id="packList"></div>
+  </section>
+
+  <section id="tab-dex" hidden>
+    <div class="chips" id="dexChips"></div>
+    <p class="prog" id="dexProg"></p>
+    <div class="grid" id="dexGrid"></div>
+  </section>
+
+  <section id="tab-terms" class="terms" hidden>
+    <h2>利用規約</h2>
+    <p class="upd">最終更新：2026年10月9日</p>
+    <p>この規約は、ドットパック（以下「本サイト」）を使うときのルールです。本サイトを使った時点で、この規約に同意したものとします。本サイトは KODRAS（以下「運営者」）が運営しています。</p>
+
+    <h3>第1条 アカウント</h3>
+    <ol>
+      <li>本サイトはログインなしで使えます。初めて開いたときに、名前のないアカウントが自動で作られます。</li>
+      <li>ログインなしのアカウントは、ブラウザのデータを消すと元に戻せません。Googleアカウントと連携すると、ほかの端末でも同じデータを使えます。</li>
+      <li>1人が複数のアカウントを使ってはいけません。</li>
+    </ol>
+
+    <h3>第2条 投稿したドット絵の権利</h3>
+    <ol>
+      <li>投稿したドット絵（カード名・ひとことを含みます。以下「作品」）の著作権は、描いた人（以下「作者」）のものです。運営者に移ることはありません。</li>
+      <li>作者は運営者に対して、作品を次の目的で使うことを、無料で、期間の制限なく許可します。この許可は独占的なものではありません。
+        <ul>
+          <li>本サイトでの表示、投票、パックへの収録、図鑑での表示</li>
+          <li>本サイトの紹介（SNSへの投稿、紹介ページ、ニュース記事など）</li>
+          <li>今後追加する本サイトの機能（対戦など）で、系統・レアリティ・能力値を付けて使うこと</li>
+        </ul>
+      </li>
+      <li>上の目的のために、運営者は作品の拡大・縮小、枠や名前・レアリティの表示、シルエット表示などの加工を行うことがあります。作者は、この範囲の利用について著作者人格権を行使しないものとします。</li>
+      <li>運営者は、作者の同意なく、作品を単体でグッズにしたり、素材として販売・配布したりしません。</li>
+      <li>作者は、自分の作品を本サイトの外でも自由に使えます（販売を含みます）。</li>
+      <li>作者は、ほかの利用者が自分の作品を元にした作品を描いて、本サイトに投稿することを許可します（第4条のサイト内二次創作）。</li>
+    </ol>
+
+    <h3>第3条 作品の削除</h3>
+    <ol>
+      <li>投稿の受付期間中は、作者はいつでも自分の作品を削除できます。</li>
+      <li>受付期間が終わってパックに収録された作品は、ほかの人の図鑑が欠けないよう、原則として残ります。作者名を表示しないようにすることは、運営者に依頼できます。</li>
+      <li>他人の権利を侵害しているなど正当な理由がある場合は、収録後でも削除します。</li>
+      <li>削除と作者名の非表示は、第9条のお問い合わせから、作品番号を指定して依頼してください。</li>
+    </ol>
+
+    <h3>第4条 投稿のルール</h3>
+    <ol>
+      <li>次のものは投稿できません。
+        <ul>
+          <li>他人が描いた絵をそのまま写したもの（トレース・転載）。フリー素材の転載を含みます。</li>
+          <li>性的な表現、過度に暴力的・残酷な表現、差別的な表現</li>
+          <li>特定の人や団体への誹謗中傷、個人情報</li>
+          <li>宣伝、政治・宗教の勧誘</li>
+          <li>テーマと関係のない大量の投稿</li>
+        </ul>
+      </li>
+      <li>アニメ・ゲーム・漫画などの既存の作品のキャラクターやロゴ、実在の人物を描いた作品は、投稿と投票はできますが、パックには収録しません。投稿するときに作者が申告するほか、運営者の判断でパックの対象外にすることがあります。</li>
+      <li>本サイトに投稿されたほかの人の作品を元にした作品（サイト内二次創作）は、自由に投稿できます。パックにも収録します。</li>
+    </ol>
+
+    <h3>第5条 投票</h3>
+    <ol>
+      <li>投票は1人1アカウントで行ってください。複数のアカウントや自動操作を使った投票は禁止です。</li>
+      <li>集計の方法は運営者が決めます。その詳細は公開しない場合があります。</li>
+      <li>不正と判断した票は無効にします。集計の結果決まった系統とレアリティについては、運営者の判断を最終とします。</li>
+    </ol>
+
+    <h3>第6条 ほかの人のカード</h3>
+    <ol>
+      <li>ほかの人のカードの画面写真を、作者名を添えてSNSなどで紹介するのは自由です（営利目的を除きます）。</li>
+      <li>ほかの人の作品をそのまま自分の作品として投稿・公開したり、販売・配布したりしてはいけません。サイト内二次創作として本サイトに投稿することは除きます。</li>
+    </ol>
+
+    <h3>第7条 カードとパック</h3>
+    <p>本サイトのカードやパックに金銭的な価値はありません。現金やほかのサービスの品物と交換することは禁止です。</p>
+
+    <h3>第8条 運営者の対応</h3>
+    <p>この規約に違反した投稿や、違反したと運営者が判断した投稿は、予告なく非表示または削除することがあります。違反を繰り返すアカウントは、利用を止めることがあります。</p>
+
+    <h3>第9条 お問い合わせ</h3>
+    <ol>
+      <li>お問い合わせで受け付けるのは、作品の削除、作者名の非表示、広告のご依頼の3つです。</li>
+      <li>作品についてのご依頼は、作品ごとに付いている作品番号を指定し、理由を選んで送ってください。作者名の非表示は、その作品を投稿したアカウントからの依頼に限ります。</li>
+      <li>運営者は内容を確認して対応します。広告のご依頼を除き、個別の返信はしません。</li>
+    </ol>
+
+    <h3>第10条 個人情報</h3>
+    <ol>
+      <li>運営者が受け取る情報は、アカウントの識別番号、投稿・投票・集めたカードの記録です。Googleアカウントと連携した場合は、連携のためにGoogleアカウントの識別番号とメールアドレスも受け取ります。メールアドレスは本サイト上には表示しません。</li>
+      <li>広告のご依頼では、返信のためにお名前とメールアドレスを受け取ります。返信以外には使いません。</li>
+      <li>これらの情報は、本サイトの提供と不正の防止のためだけに使います。法令にもとづく場合を除き、第三者には渡しません。</li>
+      <li>データの保存には Google が提供する Firebase を使います。</li>
+    </ol>
+
+    <h3>第11条 サービスの変更・終了</h3>
+    <p>運営者は、本サイトの内容を変更したり、本サイトを終了したりすることがあります。終了するときは、できるだけ前もってお知らせします。</p>
+
+    <h3>第12条 免責</h3>
+    <p>運営者は、本サイトの不具合やデータの消失、利用者どうしのトラブルについて、運営者に故意または重大な過失がある場合を除き、責任を負いません。</p>
+
+    <h3>第13条 規約の変更</h3>
+    <p>運営者はこの規約を変更することがあります。変更後の規約は本サイトに掲載した時点から有効になります。大きな変更はサイト上でお知らせします。</p>
+
+    <h3>第14条 準拠法と裁判所</h3>
+    <p>この規約は日本の法律にもとづきます。本サイトに関する争いは、東京地方裁判所を第一審の専属的合意管轄裁判所とします。</p>
+
+    <p><button class="btn small" data-back>もどる</button></p>
+  </section>
+
+  <section id="tab-contact" class="terms" hidden>
+    <h2>お問い合わせ</h2>
+    <p class="upd">受け付けているのは次の3つです。作品についてのご依頼は、カードの右下にある作品番号を入力してください。</p>
+    <form id="cForm" novalidate>
+      <fieldset class="ctype">
+        <legend>ご依頼の種類</legend>
+        <label><input type="radio" name="ctype" id="ct-del" value="del" checked> 作品の削除</label>
+        <label><input type="radio" name="ctype" id="ct-hide" value="hide"> 作者名の非表示</label>
+        <label><input type="radio" name="ctype" id="ct-ad" value="ad"> 広告のご依頼</label>
+      </fieldset>
+      <div id="cWork">
+        <div class="field"><label for="cNo">作品番号</label><div class="noin"><span>No.</span><input id="cNo" maxlength="12" autocomplete="off" placeholder="0012-2"></div></div>
+        <div id="cCard" class="ccard"></div>
+        <div class="field"><label for="cReason">理由</label><select id="cReason"></select></div>
+      </div>
+      <div id="cAd" hidden>
+        <div class="field"><label for="cName">お名前・会社名</label><input id="cName" maxlength="60" autocomplete="organization"></div>
+        <div class="field"><label for="cMail">メールアドレス</label><input id="cMail" type="email" maxlength="120" autocomplete="email"></div>
+        <div class="field"><label for="cBody">ご依頼の内容（300文字まで）</label><textarea id="cBody" maxlength="300" rows="5"></textarea></div>
+      </div>
+      <p class="err" id="cErr"></p>
+      <button class="btn primary" type="submit">送信する</button>
+    </form>
+    <div id="cDone" hidden>
+      <p id="cDoneMsg"></p>
+      <p><button class="btn small" id="cAgain">続けて送る</button></p>
+    </div>
+    <p><button class="btn small" data-back>もどる</button></p>
+  </section>
+
+
+  <section id="tab-account" class="terms" hidden>
+    <h2>アカウント</h2>
+    <p class="upd">ログインしなくても、作る・投票する・パックを開けるはすべてできます。</p>
+    <div class="field"><label for="aName">作者名（12文字まで）</label><input id="aName" maxlength="12" autocomplete="nickname" placeholder="ななしさん"></div>
+    <h3>Googleアカウント</h3>
+    <p id="aStatus"></p>
+    <p><button class="btn" id="aGoogle">Googleと連携する</button> <button class="btn small" id="aLogout" hidden>ログアウト</button></p>
+    <p class="hint">連携すると、集めたカードがどの端末でも見られるようになります。別の端末で連携済みのGoogleアカウントを選ぶと、そのアカウントに切り替わります。</p>
+    <p><button class="btn small" data-back>もどる</button></p>
+  </section>
+
+  <aside class="ad" id="adSlot">
+    <span class="ad-lbl">広告</span>
+    <span>広告募集中</span>
+    <button class="linkbtn" data-contact="ad">広告のご依頼はこちら</button>
+  </aside>
+
+  <footer class="foot"><button class="linkbtn" id="termsLink">利用規約</button><button class="linkbtn" id="accountLink">アカウント</button><button class="linkbtn" data-contact="del">お問い合わせ</button></footer>
+</div>
+
+<div id="dt" class="modal" hidden>
+  <div class="dt-in">
+    <div id="dtCard" class="dt-card"></div>
+    <dl id="dtInfo" class="dt-info"></dl>
+    <div class="ov-actions">
+      <button class="btn primary" id="dtMake">これを元に作る</button>
+      <button class="btn" id="dtClose">とじる</button>
+    </div>
+  </div>
+</div>
+
+<div id="ov" hidden>
+  <div class="ov-in">
+    <div id="ovPack"></div>
+    <p class="ov-hint" id="ovHint">タップして開ける</p>
+    <div id="ovCards" hidden></div>
+    <div class="ov-actions" id="ovActions" hidden>
+      <button class="btn" id="flipAll">ぜんぶめくる</button>
+      <button class="btn primary" id="again">もう1パック</button>
+      <button class="btn" id="closeOv">とじる</button>
+    </div>
+  </div>
+</div>
+<div id="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

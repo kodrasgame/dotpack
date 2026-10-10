@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>ドットパック 管理</title>
+<link rel="preload" href="fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.who{color:var(--muted);margin:0 0 16px;overflow-wrap:anywhere}
+.who code{font:inherit;background:var(--art-bg);padding:0 6px;color:var(--fg)}
+.paled h3 input{border:2px solid var(--fg);padding:0 8px;max-width:14em;clip-path:var(--notch)}
+.pcols{display:grid;grid-template-columns:repeat(8,36px);gap:6px}
+.pcols input{width:36px;height:30px;padding:0;border:2px solid var(--fg);background:none;cursor:pointer}
+.pcols input::-webkit-color-swatch-wrapper{padding:0}
+.pcols input::-webkit-color-swatch{border:0}
+.adm-form input[type="month"]{border:2px solid var(--fg);padding:4px 8px;clip-path:var(--notch)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><p class="logo">ドットパック 管理</p><span><button class="btn small" id="login">Googleでログイン</button><button class="btn small" id="logout" hidden>ログアウト</button></span></div>
+  <p class="who" id="who">読み込み中…</p>
+  <div id="main" hidden>
+    <div class="chips" id="admTabs">
+      <button class="chip" data-adm="req">お問い合わせ<span class="cnt" id="admReqCnt"></span></button>
+      <button class="chip" data-adm="cards">作品</button>
+      <button class="chip" data-adm="close">締め切り</button>
+      <button class="chip" data-adm="theme">テーマ</button>
+      <button class="chip" data-adm="export">パック書き出し</button>
+    </div>
+    <div id="adm-req"></div>
+    <div id="adm-cards" hidden></div>
+    <div id="adm-close" hidden></div>
+    <div id="adm-theme" hidden></div>
+    <div id="adm-export" hidden></div>
+  </div>
+</div>
+<div id="toast" hidden></div>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>
