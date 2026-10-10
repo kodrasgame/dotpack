@@ -2,10 +2,10 @@
    firebaseConfig は Firebase コンソール → プロジェクトの設定 → マイアプリ（ウェブ）に出ている値。
    公開されても問題ない値です（守りはセキュリティルールで行います）。 */
 export const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId: 'YOUR_PROJECT_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCuOLwxmNgPZOU3MD4l2PWOsXEzTqhudwo',
+  authDomain: 'dot-pack.firebaseapp.com',
+  projectId: 'dot-pack',
+  appId: '1:762176496767:web:b3db38ab5b72e856d6cb4a',
 };
 
 /* 管理者（もとはしさん）の Google アカウントの UID。
