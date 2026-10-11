@@ -246,9 +246,9 @@ $('#adm-export').addEventListener('click', async e => { const b = e.target.close
 
 /* テーマ（次のテーマとパレット） */
 const DEFAULT_PALS = [
-  { name: 'パレット1', colors: '#1f2440 #3a4f8f #4f86d9 #7fb8f0 #b8e0fa #ffffff #fff3c4 #ffd166 #f4a259 #e86a5c #f7b2c4 #8fd694 #5aa469 #c7cbe0 #8e93b3'.split(' ') },
-  { name: 'パレット2', colors: '#2b1a33 #5c2a52 #9b3d63 #d9596b #f28a5c #fbb661 #fde3a7 #fff8e8 #7a5c99 #a98bd1 #4a6fa5 #8fb8de #3d2e4f #c2a3a3 #6e5a6e'.split(' ') },
-  { name: 'パレット3', colors: '#0b0e1f #18204a #2b3a7a #4659b5 #7a8be0 #b9c3f5 #f0f3ff #ffe680 #ffb347 #9a6bd1 #5be0d0 #2a9d8f #e05a8a #555a78 #9ea2bd'.split(' ') },
+  { name: 'げんき', colors: '#1c1c28 #ffffff #e8383d #ff8c42 #ffd23f #6cc551 #2a9d5c #3b82f6 #1e4fa8 #9b5de5 #ff7eb6 #f6c9a0 #d9925b #8a5a3b #9aa3b1'.split(' ') },
+  { name: 'ふんわり', colors: '#3b2f3a #fffaf3 #ffb5c2 #ffd6a5 #fdffb6 #caffbf #9bf6ff #a0c4ff #bdb2ff #ffc6ff #f5d7c3 #e8b98a #c08b6a #8c6a5d #b8b8c8'.split(' ') },
+  { name: 'よふかし', colors: '#0d0b1e #f2f0ff #1f1b4a #3a2f80 #6a4bc4 #ff4fa3 #ff8a3d #ffe066 #3dffb5 #34c6ff #2b6fff #c7a17a #7d5a44 #5c5f7a #a9acc9'.split(' ') },
 ];
 let pals = null;
 function renderTheme() {

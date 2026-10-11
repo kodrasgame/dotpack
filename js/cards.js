@@ -46,7 +46,7 @@ function colorsOf(c) { return c._colors || (PALETTES[c.tid] && PALETTES[c.tid][c
 
 /* ---------- カード（110×154ドット、カードレイアウトツールで決めた配置） ---------- */
 export const CW = 110, CH = 154, CB = 5, CC = 2;
-const LAY = { art: { x: 7, y: 7, scale: 3 }, stars: { r: 103, y: 15, gap: 1 }, no: { x: 103, y: 7 }, name: { x: 6, y: 104 }, text: { x: 9, y: 117, w: 91, lh: 12 } };
+const LAY = { art: { x: 7, y: 7, scale: 3 }, stars: { r: 103, y: 15, gap: 1 }, no: { x: 103, y: 7 }, name: { x: 9, y: 104 }, text: { x: 9, y: 117, w: 91, lh: 12 } };
 
 /* 枠：のっぺりした1色（5ドット）＋いちばん外側の1ドットは黒。★1 黒・★2 銀・★3 金・★4以上 虹。受付中は黒、未所持は灰 */
 const METAL = { 1: '#1c1c1c', 2: '#9aa3b1', 3: '#d4a133' };
@@ -125,12 +125,19 @@ export function wrapText(str, maxW) {
   tctx.font = FONT; const out = []; let line = '';
   for (const ch of str) {
     if (tctx.measureText(line + ch).width > maxW && line) {
-      if (NO_HEAD.includes(ch) && line.length > 1) { out.push(line.slice(0, -1)); line = line.slice(-1) + ch } else { out.push(line); line = ch }
+      const sp = line.lastIndexOf(' ');
+      if (ch !== ' ' && /[!-~]/.test(ch) && sp > 0) { out.push(line.slice(0, sp)); line = line.slice(sp + 1) + ch }   // 英語は単語の切れ目で改行
+      else if (NO_HEAD.includes(ch) && line.length > 1) { out.push(line.slice(0, -1)); line = line.slice(-1) + ch } else { out.push(line); line = ch === ' ' ? '' : ch }
     } else line += ch;
   }
   if (line) out.push(line); return out;
 }
-export const loadCardFont = () => document.fonts.load(FONT, 'あ').catch(() => { });
+/* カードの背景：星ごとに1枚（締め切り後のカードだけ）。img/bg/star1〜4.png を枠の内側 100×144 ドットに引き伸ばして使う */
+const bgImgs = {};
+const loadBackgrounds = () => Promise.all([1, 2, 3, 4].map(n => new Promise(res => {
+  const im = new Image(); im.onload = () => { bgImgs[n] = im; res() }; im.onerror = res; im.src = `img/bg/star${n}.png`;
+})));
+export const loadCardFont = () => Promise.all([document.fonts.load(FONT, 'あ').catch(() => { }), loadBackgrounds()]);
 
 /* mode: 'full'（締め切り後）/ 'pending'（受付中）/ 'sil'（未所持） */
 const cardCache = new Map();
@@ -143,6 +150,8 @@ export function cardImg(c, mode) {
   const edge = sil ? cssv('--sil') : cssv('--fg'), ink = cssv('--fg'), quiet = cssv('--muted');
   const at = full && c.star && ATTR_C[c.attr];
   drawFrame(x, edge, full ? c.star : 0);
+  const bg = full && c.star && bgImgs[Math.min(c.star, 4)];
+  if (bg) x.drawImage(bg, CB, CB, CW - 2 * CB, CH - 2 * CB);   // 小さい画像も枠の内側いっぱいに引き伸ばす
   const A = LAY.art;
   x.drawImage(artCanvas(c.px, colorsOf(c), sil), A.x, A.y, N * A.scale, N * A.scale);
   if (full && c.star) drawStars(x, c.star);
