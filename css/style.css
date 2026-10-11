@@ -43,7 +43,8 @@ button{cursor:pointer}
 .plus[aria-pressed="true"]{background:var(--surface);color:var(--fg)}
 
 .topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px;margin-bottom:6px}
-.logo{font-size:20px;letter-spacing:.1em;color:var(--muted);margin:0}
+.logo{font-size:20px;letter-spacing:.1em;color:var(--muted);margin:0;display:flex;align-items:center;gap:8px;line-height:0}
+.logo img{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
 header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
 .theme-lbl{color:var(--muted)}
 .theme-name{font-size:40px;line-height:1.2;margin:0;text-wrap:balance}

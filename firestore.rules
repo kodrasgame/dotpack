@@ -34,7 +34,7 @@ service cloud.firestore {
           && isStr(request.resource.data.name, 1, 16)
           && isStr(request.resource.data.text, 0, 18)
           && request.resource.data.p in [0, 1, 2]
-          && request.resource.data.px is string && request.resource.data.px.matches('^[0-9a-f]{1024}$')
+          && request.resource.data.px is string && request.resource.data.px.size() == 1024 && request.resource.data.px.matches('^[0-9a-f]+$')
           && request.resource.data.fan is bool
           && (request.resource.data.base == null || isStr(request.resource.data.base, 1, 64))
           && (request.resource.data.baseNo == null || isStr(request.resource.data.baseNo, 1, 20))
