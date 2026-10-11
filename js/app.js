@@ -1,7 +1,8 @@
 /* ドットパック 公開ページ */
 import {
   auth, db, CONFIGURED, MOCK, onAuthStateChanged, signInAnonymously, GoogleAuthProvider, linkWithPopup, signInWithCredential, signOut,
-  doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, runTransaction, serverTimestamp, Timestamp
+  doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, runTransaction, serverTimestamp,
+  writeBatch, startAfter, increment, getCountFromServer
 } from './fb.js';
 import {
   $, esc, ATTRS, ATTR_L, N, NAME_MAX, TEXT_MAX, fmtNo, parseNo, nameW, clipW, PALETTES,
@@ -23,7 +24,10 @@ const S = {
   tab: store.get('dp-tab', 'vote'),
   user: null,
   theme: null,          // 受付中のテーマ { id, no, name, month, palettes, seq }
-  cards: new Map(),     // 受付中のカード id -> card
+  cards: new Map(),     // 読み込んだ受付中のカード id -> card
+  sort: store.get('dp-sort', 'new'),   // 投票の並び順 new（新着順）/ pop（人気順）
+  feeds: {},            // 並び順ごとの読み込み状況 { ids, cursor, done, loading, failed }
+  count: 0,             // 受付中のカードの枚数（削除・非表示を除く）
   myVotes: {},          // cardId -> 系統
   packIndex: [],        // 締め切ったパックの一覧（packs/index.json）
   packs: new Map(),     // パック番号 -> パックの中身
@@ -31,7 +35,8 @@ const S = {
 };
 const isGoogle = () => !!(S.user && S.user.providerData.some(p => p.providerId === 'google.com'));
 const authorName = () => store.get('dp-name', '') || 'ななしさん';
-const visibleCards = () => [...S.cards.values()].filter(c => !c.deleted && !c.hidden).sort((a, b) => a.no - b.no);
+const voteKey = () => 'dp-votes-' + S.theme.id + '-' + S.user.uid;   // 端末に保存する票はアカウントごと
+const visible = c => !!c && !c.deleted && !c.hidden;
 
 /* ---------- タブ・ページ ---------- */
 const MAIN = ['make', 'vote', 'packs', 'dex'];
@@ -66,37 +71,75 @@ function renderHeader() {
   $('#thName').textContent = th.name;
   const [y, m] = th.month.split('-').map(Number);
   const left = Math.max(0, Math.ceil((new Date(y, m, 1) - new Date()) / 864e5));
-  $('#thMeta').innerHTML = `投稿・投票 受付中<br>のこり <b>${left}</b> 日 ・ <b>${visibleCards().length}</b> 枚`;
+  $('#thMeta').innerHTML = `投稿・投票 受付中<br>のこり <b>${left}</b> 日 ・ <b>${S.count}</b> 枚`;
 }
 
 /* ---------- 読み込み ---------- */
 async function loadTheme() {
   const snap = await getDocs(query(collection(db, 'themes'), where('status', '==', 'open'), limit(1)));
-  if (snap.empty) { S.theme = null; return }
+  if (snap.empty) { S.theme = null; cleanCache(); return }
   const d = snap.docs[0];
   S.theme = { id: d.id, ...d.data() };
   PALETTES[S.theme.id] = S.theme.palettes;
+  cleanCache();
 }
-/* 受付中のカード：前回から変わった分だけ読む（読み取り回数の節約） */
-async function syncCards() {
+/* 締め切ったテーマの票の控えと、前の版のカードの控え（dp-cards-*）を端末から消す */
+function cleanCache() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('dp-cards-') || (k.startsWith('dp-votes-') && !(S.theme && k.startsWith('dp-votes-' + S.theme.id + '-')))) localStorage.removeItem(k);
+    }
+  } catch (e) { }
+}
+/* 受付中のカード：並び順ごとに PAGE 枚ずつ読む（「もっと見る」で続きを読む） */
+const PAGE = 20;
+const SORTS = { new: ['no', 'desc'], pop: ['vc', 'desc'] };
+const cardsCol = () => collection(db, 'themes', S.theme.id, 'cards');
+const toCard = d => { const v = d.data(); return { ...v, id: d.id, createdAt: ms(v.createdAt), updatedAt: ms(v.updatedAt) } };
+const feed = () => S.feeds[S.sort] || (S.feeds[S.sort] = { ids: [], cursor: null, done: false, loading: null, failed: false });
+function resetCards() { S.cards = new Map(); S.feeds = {} }
+function loadMore() {
+  const f = feed();
+  if (!S.theme || f.done) return Promise.resolve();
+  if (f.loading) return f.loading;
+  const cons = [orderBy(...SORTS[S.sort])]; if (f.cursor) cons.push(startAfter(f.cursor)); cons.push(limit(PAGE));
+  return f.loading = getDocs(query(cardsCol(), ...cons)).then(snap => {
+    snap.forEach(d => { S.cards.set(d.id, toCard(d)); if (!f.ids.includes(d.id)) f.ids.push(d.id) });
+    if (snap.docs.length) f.cursor = snap.docs[snap.docs.length - 1];
+    f.done = snap.docs.length < PAGE;
+  }).finally(() => { f.loading = null });
+}
+async function more() {
+  const f = feed();
+  try { await loadMore() } catch (e) { console.warn(e); f.failed = true; toast('読み込めませんでした') }
+  if (S.tab === 'vote') renderVote();
+}
+/* 枚数だけを数える（1000枚ごとに読み取り1回ぶん） */
+async function countCards() {
   if (!S.theme) return;
-  const key = 'dp-cards-' + S.theme.id;
-  const cache = store.get(key, { last: 0, cards: {} });
-  const q = query(collection(db, 'themes', S.theme.id, 'cards'), where('updatedAt', '>', Timestamp.fromMillis(cache.last)), orderBy('updatedAt'));
-  const snap = await getDocs(q);
-  snap.forEach(d => {
-    const v = d.data();
-    cache.cards[d.id] = { ...v, id: d.id, createdAt: ms(v.createdAt), updatedAt: ms(v.updatedAt) };
-    cache.last = Math.max(cache.last, ms(v.updatedAt));
-  });
-  store.set(key, cache);
-  S.cards = new Map(Object.entries(cache.cards));
+  try { const r = await getCountFromServer(query(cardsCol(), where('deleted', '==', false), where('hidden', '==', false))); S.count = r.data().count }
+  catch (e) { console.warn(e); S.count = S.theme.seq || 0 }
 }
+
+/* 票：画面の票（S.myVotes）と、サーバーに保存済みの票（savedVotes）の差だけ書く */
+let carryVotes = null;   // 別のアカウントに切り替えたときに持っていく票
+let savedVotes = {}, savedFor = '';
+async function readSavedVotes(tid, uid) {
+  const d = await getDoc(doc(db, 'votes', tid + '_' + uid));
+  savedVotes = d.exists() ? (d.data().v || {}) : {}; savedFor = tid + '_' + uid;
+}
+const saveLocalVotes = dirty => store.set(voteKey(), { v: S.myVotes, dirty });
 async function loadMyVotes() {
-  if (!S.theme || !S.user) return;
-  const local = store.get('dp-votes-' + S.theme.id, null);
-  if (local) { S.myVotes = local; return }
-  try { const d = await getDoc(doc(db, 'votes', S.theme.id + '_' + S.user.uid)); S.myVotes = d.exists() ? (d.data().v || {}) : {} } catch (e) { S.myVotes = {} }
+  if (!S.theme || !S.user) { carryVotes = null; return }
+  try { await readSavedVotes(S.theme.id, S.user.uid) } catch (e) { savedVotes = {}; savedFor = '' }
+  const local = store.get(voteKey(), null);
+  // 保存しきれなかった票が端末に残っていれば、それを使って保存し直す
+  if (local && local.dirty && local.v) { S.myVotes = local.v; voteDirty = true } else S.myVotes = { ...savedVotes };
+  if (carryVotes) {
+    // 切り替え先ですでに入れていた票はそのまま、まだ入れていない作品の分だけ足す
+    S.myVotes = { ...carryVotes, ...S.myVotes }; carryVotes = null; voteDirty = true;
+  }
+  if (voteDirty) { saveLocalVotes(true); await flushVotes() }
 }
 async function loadPackIndex() {
   const mp = MOCK ? store.get('mock-packs', null) : null;
@@ -124,15 +167,27 @@ function cardById(id) {
 /* ---------- 投票（まとめて保存） ---------- */
 let voteTimer = null, voteDirty = false;
 function renderVote() {
-  if (!S.theme) { $('#voteNote').textContent = ''; $('#voteGrid').innerHTML = '<p class="empty">いまは投稿・投票を受け付けていません。</p>'; return }
-  const list = visibleCards(), uid = S.user && S.user.uid;
-  const voted = list.filter(c => S.myVotes[c.id]).length;
-  $('#voteNote').innerHTML = `1枚につき1つ選べます。いちばん票が集まった項目がそのカードの系統になります。（投票済み ${voted} / ${list.filter(c => c.uid !== uid).length}）<br>はじめて投票した作品ごとにパックを開ける回数が <b>+${PACK_PER_VOTE}</b>（いま あと <b>${packsLeft()}</b> 回）`;
+  document.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === S.sort));
+  $('#voteSort').hidden = !S.theme;
+  if (!S.theme) { $('#voteNote').textContent = ''; $('#voteGrid').innerHTML = '<p class="empty">いまは投稿・投票を受け付けていません。</p>'; $('#voteMore').hidden = true; return }
+  const f = feed(), uid = S.user && S.user.uid;
+  if (!f.ids.length && !f.done && !f.loading && !f.failed && S.user) more();   // 最初の1ページ
+  const list = f.ids.map(id => S.cards.get(id)).filter(visible);
+  $('#voteMore').hidden = f.done; $('#voteMore').disabled = !!f.loading; $('#voteMore').textContent = f.loading ? '読み込み中…' : 'もっと見る';
+  $('#voteNote').innerHTML = `1枚につき1つ選べます。いちばん票が集まった項目がそのカードの系統になります。（投票済み ${Object.keys(S.myVotes).length} 枚）<br>はじめて投票した作品ごとにパックを開ける回数が <b>+${PACK_PER_VOTE}</b>（いま あと <b>${packsLeft()}</b> 回）`;
   $('#voteGrid').innerHTML = list.map(c => `<div class="vcell">${cardHTML(c, 'pending', c.uid !== uid && !rew[c.id] ? `<span class="cnt plus1">+${PACK_PER_VOTE}</span>` : '')}${capHTML(c)}${c.uid === uid ?
-    `<div class="mine">あなたの作品<button class="linkbtn" data-del="${c.id}">${delArm === c.id ? 'もう一度押すと削除' : '削除'}</button></div>` :
-    `<div class="vbtns">${ATTRS.map(a => `<button class="vb a-${a.k}" data-id="${c.id}" data-k="${a.k}" aria-pressed="${S.myVotes[c.id] === a.k}">${a.l}</button>`).join('')}</div>`}</div>`).join('')
-    || '<p class="empty">まだ投稿がありません。右上の「＋つくる」から最初の1枚をどうぞ。</p>';
+    `<div class="mine">あなたの作品<button class="linkbtn" data-del="${esc(c.id)}">${delArm === c.id ? 'もう一度押すと削除' : '削除'}</button></div>` :
+    `<div class="vbtns">${ATTRS.map(a => `<button class="vb a-${a.k}" data-id="${esc(c.id)}" data-k="${a.k}" aria-pressed="${S.myVotes[c.id] === a.k}">${a.l}</button>`).join('')}</div>`}</div>`).join('')
+    || (f.done ? '<p class="empty">まだ投稿がありません。右上の「＋つくる」から最初の1枚をどうぞ。</p>' : f.loading && !f.ids.length ? '<p class="empty">読み込み中…</p>' : '');
 }
+/* 並び順。選んでいる方をもう一度押すと、最新の状態で読み直す */
+$('#voteSort').addEventListener('click', e => {
+  const b = e.target.closest('[data-sort]'); if (!b) return;
+  if (b.dataset.sort === S.sort) { if (!feed().loading) delete S.feeds[S.sort] }
+  else { S.sort = b.dataset.sort; store.set('dp-sort', S.sort) }
+  renderVote();
+});
+$('#voteMore').onclick = () => { feed().failed = false; more(); renderVote() };
 function capHTML(c) {
   return `<div class="cap"><span>by ${c.anon ? '―' : esc(c.by)}</span></div>${c.baseNo ? `<div class="cap-base">元ネタ ${esc(c.baseNo)}</div>` : ''}`;
 }
@@ -142,7 +197,11 @@ $('#voteGrid').addEventListener('click', async e => {
   if (d) {
     const id = d.dataset.del; if (delArm !== id) { delArm = id; renderVote(); return }
     delArm = null;
-    try { await updateDoc(doc(db, 'themes', S.theme.id, 'cards', id), { deleted: true, updatedAt: serverTimestamp() }); await syncCards(); renderHeader(); renderVote(); toast('削除しました') }
+    try {
+      await updateDoc(doc(db, 'themes', S.theme.id, 'cards', id), { deleted: true, px: EMPTY, name: '', text: '', by: '', updatedAt: serverTimestamp() });
+      const c = S.cards.get(id); if (c) c.deleted = true; S.count = Math.max(0, S.count - 1);
+      renderHeader(); renderVote(); toast('削除しました');
+    }
     catch (err) { toast('削除できませんでした') }
     return;
   }
@@ -150,7 +209,7 @@ $('#voteGrid').addEventListener('click', async e => {
   if (b) {
     const id = b.dataset.id, k = b.dataset.k;
     if (S.myVotes[id] === k) delete S.myVotes[id]; else S.myVotes[id] = k;
-    store.set('dp-votes-' + S.theme.id, S.myVotes);
+    saveLocalVotes(true);
     if (S.myVotes[id] && voteReward(id)) toast(`パック +${PACK_PER_VOTE}（あと ${packsLeft()} 回）`);
     voteDirty = true; clearTimeout(voteTimer); voteTimer = setTimeout(flushVotes, 3000);
     renderVote(); return;
@@ -158,12 +217,38 @@ $('#voteGrid').addEventListener('click', async e => {
   if (e.target.closest('button')) return;
   const card = e.target.closest('.card[data-cid]'); if (card) openDetail(card.dataset.cid);
 });
+let flushing = null;
 async function flushVotes() {
+  while (flushing) await flushing;
   if (!voteDirty || !S.theme || !S.user) return;
   voteDirty = false; clearTimeout(voteTimer);
-  try {
-    await setDoc(doc(db, 'votes', S.theme.id + '_' + S.user.uid), { uid: S.user.uid, tid: S.theme.id, google: isGoogle(), v: S.myVotes, updatedAt: serverTimestamp() });
-  } catch (e) { voteDirty = true; console.warn('vote save failed', e) }
+  const target = { ...S.myVotes }, tid = S.theme.id, uid = S.user.uid, google = isGoogle();
+  flushing = (async () => {
+    try {
+      if (savedFor !== tid + '_' + uid) await readSavedVotes(tid, uid);
+      try { await saveVotes(target, tid, uid, google) }
+      catch (e) { await readSavedVotes(tid, uid); await saveVotes(target, tid, uid, google) }   // ほかの端末で票が変わっていたら、読み直してもう一度
+      if (!voteDirty && S.user && S.user.uid === uid) saveLocalVotes(false);
+    } catch (e) { voteDirty = true; console.warn('vote save failed', e) }
+  })();
+  try { await flushing } finally { flushing = null }
+}
+/* 入れた・取り消した作品は、票と同じまとめ書きでカードの票数（vc）を ±1 する。ルールが票と数の食い違いを止める */
+async function saveVotes(target, tid, uid, google) {
+  const cur = { ...savedVotes }, flips = [];
+  for (const id of new Set([...Object.keys(cur), ...Object.keys(target)])) {
+    if (!!cur[id] !== !!target[id]) flips.push(id);
+    else if (target[id]) cur[id] = target[id];   // 系統を変えただけ（票数は動かない）
+  }
+  do {
+    const chunk = flips.splice(0, 400), b = writeBatch(db);
+    for (const id of chunk) {
+      if (target[id]) cur[id] = target[id]; else delete cur[id];
+      b.update(doc(db, 'themes', tid, 'cards', id), { vc: increment(target[id] ? 1 : -1) });
+    }
+    b.set(doc(db, 'votes', tid + '_' + uid), { uid, tid, google, v: { ...cur }, updatedAt: serverTimestamp() });
+    await b.commit(); savedVotes = { ...cur }; savedFor = tid + '_' + uid;
+  } while (flips.length);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushVotes() });
 window.addEventListener('pagehide', flushVotes);
@@ -307,11 +392,14 @@ $('#submit').onclick = async () => {
       tx.set(cRef, {
         uid: S.user.uid, tid: S.theme.id, tno: t.data().no, no: seq, by, name, text, p: ed.p, px: ed.px,
         fan: $('#fFan').checked, base: ed.base ? ed.base.id : null, baseNo: ed.base ? fmtNo(ed.base) : null,
-        hidden: false, deleted: false, anon: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+        hidden: false, deleted: false, anon: false, vc: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
     });
     ed.px = EMPTY; ed.hist = []; ed.base = null; $('#fName').value = ''; $('#fText').value = ''; $('#fFan').checked = false; saveDraft();
-    await syncCards(); renderHeader(); setTab('vote'); toast('投稿しました');
+    /* 投稿した1枚だけ読んで、新着順の先頭に足す */
+    try { const nd = await getDoc(cRef); if (nd.exists()) { S.cards.set(nd.id, toCard(nd)); const fn = S.feeds.new; if (fn && !fn.ids.includes(nd.id)) fn.ids.unshift(nd.id) } } catch (e2) { }
+    S.count++; S.sort = 'new'; store.set('dp-sort', 'new');
+    renderHeader(); setTab('vote'); window.scrollTo(0, 0); toast('投稿しました');
   } catch (e) {
     console.warn(e); err(e.message === 'closed' ? 'いまは投稿を受け付けていません' : '投稿できませんでした。時間をおいてもう一度お試しください');
   } finally { posting = false; $('#submit').disabled = false }
@@ -409,8 +497,8 @@ function saveOwned() {
 }
 function pushUser() {
   clearTimeout(ownedTimer); ownedTimer = null;
-  if (!isGoogle()) return;
-  setDoc(doc(db, 'users', S.user.uid), { name: store.get('dp-name', ''), owned: S.owned, charge: { n: charge.n, t: charge.t, b: charge.b }, rew, updatedAt: serverTimestamp() }).catch(e => console.warn(e));
+  if (!isGoogle()) return Promise.resolve();
+  return setDoc(doc(db, 'users', S.user.uid), { name: store.get('dp-name', ''), owned: S.owned, charge: { n: charge.n, t: charge.t, b: charge.b }, rew, updatedAt: serverTimestamp() }).catch(e => console.warn(e));
 }
 addEventListener('pagehide', () => { if (ownedTimer) pushUser() });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && ownedTimer) pushUser() });
@@ -458,10 +546,25 @@ function openDetail(id) {
   const rows = [['パック', esc(packName)], ['作品番号', fmtNo(c)], ['作者', c.anon ? '―' : esc(c.by)]];
   if (c.star) rows.push(['系統・星', `${c.attr ? ATTR_L[c.attr] : '—'} ・ ${'★'.repeat(c.star)}`]);
   if (c.fan) rows.push(['収録', 'パック対象外']);
-  if (c.baseNo) { const bc = c.base ? cardById(c.base) : null; rows.push(['元ネタ', bc ? `<button class="linkbtn" data-goto="${bc.id}">${esc(c.baseNo)} ${esc(bc.name)}</button>` : esc(c.baseNo)]) }
+  let needBase = false;
+  if (c.baseNo) {
+    const bc = c.base ? cardById(c.base) : null; needBase = !!c.base && !bc;
+    rows.push(['元ネタ', visible(bc) ? `<button class="linkbtn" data-goto="${esc(bc.id)}">${esc(c.baseNo)} ${esc(bc.name)}</button>` : esc(c.baseNo)]);
+  }
   $('#dtInfo').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   $('#dtMake').hidden = !S.theme;
   $('#dt').hidden = false; document.body.style.overflow = 'hidden'; $('#dt').scrollTop = 0;
+  // 元ネタのカードがまだ読み込まれていなければ、その1枚だけ読んで表示し直す
+  if (needBase) fetchBase(c).then(b => { if (b && dtCard === c && !$('#dt').hidden) openDetail(c.id) }).catch(() => { });
+}
+async function fetchBase(c) {
+  const n = parseNo(c.baseNo); if (!n) return null;
+  if (S.theme && n.tno === S.theme.no) {
+    const d = await getDoc(doc(cardsCol(), c.base)); if (!d.exists()) return null;
+    const b = toCard(d); S.cards.set(b.id, b); return visible(b) ? b : null;
+  }
+  if (S.packIndex.find(p => p.no === n.tno)) { const p = await loadPack(n.tno); return p.cards.find(x => x.id === c.base) || null }
+  return null;
 }
 function closeDetail() { $('#dt').hidden = true; document.body.style.overflow = '' }
 $('#dtInfo').addEventListener('click', e => { const b = e.target.closest('[data-goto]'); if (b) openDetail(b.dataset.goto) });
@@ -482,7 +585,14 @@ const cType = () => document.querySelector('input[name="ctype"]:checked').value;
 let cFound = null, cSeq = 0;
 async function findNo(v) {
   const n = parseNo(v); if (!n) return null;
-  if (S.theme && n.tno === S.theme.no) return visibleCards().find(c => c.no === n.no) || null;
+  if (S.theme && n.tno === S.theme.no) {
+    const hit = [...S.cards.values()].find(c => c.no === n.no);
+    if (hit) return visible(hit) ? hit : null;
+    try {
+      const snap = await getDocs(query(cardsCol(), where('no', '==', n.no), limit(1))); if (snap.empty) return null;
+      const c = toCard(snap.docs[0]); S.cards.set(c.id, c); return visible(c) ? c : null;
+    } catch (e) { return null }
+  }
   if (!S.packIndex.find(p => p.no === n.tno)) return null;
   try { const p = await loadPack(n.tno); return p.cards.find(c => c.no === n.no) || null } catch (e) { return null }
 }
@@ -542,8 +652,21 @@ $('#aGoogle').onclick = async () => {
       // このGoogleアカウントは別の端末ですでに使われている → そちらに切り替える
       const cred = GoogleAuthProvider.credentialFromError(e);
       if (!cred) { toast('連携できませんでした'); return }
+      /* いまの匿名アカウントの票は空にして、切り替え先へ持っていく（同じ人の票が2回数えられないように） */
       await flushVotes();
-      await signInWithCredential(auth, cred);
+      if (S.theme && Object.keys(S.myVotes).length) {
+        carryVotes = { ...S.myVotes }; S.myVotes = {}; saveLocalVotes(true);
+        voteDirty = true; await flushVotes();
+        if (voteDirty) { S.myVotes = carryVotes; carryVotes = null; saveLocalVotes(true); toast('連携できませんでした。時間をおいてもう一度お試しください'); return }
+      }
+      try { await signInWithCredential(auth, cred) }
+      catch (e2) {
+        console.warn(e2);
+        if (carryVotes) { S.myVotes = carryVotes; carryVotes = null; saveLocalVotes(true); voteDirty = true; flushVotes() }
+        toast('連携できませんでした'); return;
+      }
+      // 読み込み直し（カード・票・集めたカード）は onAuthStateChanged がアカウントの切り替えを見て行う
+      toast('Googleアカウントに切り替えました'); return;
     } else if (e.code !== 'auth/popup-closed-by-user') { console.warn(e); toast('連携できませんでした'); return }
     else return;
   }
@@ -553,7 +676,13 @@ $('#aGoogle').onclick = async () => {
   voteDirty = true; await flushVotes();
   renderAccount(); toast('Googleアカウントと連携しました');
 };
-$('#aLogout').onclick = async () => { await flushVotes(); await signOut(auth); toast('ログアウトしました') };
+$('#aLogout').onclick = async () => {
+  await flushVotes(); if (ownedTimer) await pushUser();
+  await signOut(auth);
+  /* 集めたカードはGoogleアカウントの方に残っている。この端末の控えは消して、次に使う人のデータと混ざらないようにする */
+  S.owned = {}; store.set('dp-owned', {});
+  toast('ログアウトしました');
+};
 
 /* ---------- 起動 ---------- */
 async function start() {
@@ -562,9 +691,10 @@ async function start() {
     if (!u) { try { await signInAnonymously(auth) } catch (e) { toast('接続できませんでした') } return }
     const changed = !S.user || S.user.uid !== u.uid; S.user = u;
     if (!changed) return;
+    resetCards();
     try {
       await Promise.all([loadTheme(), loadPackIndex()]);
-      await Promise.all([syncCards(), loadMyVotes(), mergeOwnedFromServer()]);
+      await Promise.all([countCards(), loadMyVotes(), mergeOwnedFromServer()]);
     } catch (e) { console.warn(e); toast('読み込みに失敗しました') }
     renderHeader(); setTab(MAIN.includes(S.tab) ? S.tab : 'vote');
   });

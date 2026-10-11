@@ -9,6 +9,18 @@ service cloud.firestore {
     function isGoogle() { return signedIn() && ('google.com' in request.auth.token.firebase.identities); }
     function themeDoc(tid) { return get(/databases/$(database)/documents/themes/$(tid)); }
     function isStr(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi; }
+    function isId(v) { return v.matches('^[A-Za-z0-9]{20}$'); }
+    // 票のドキュメントの「前」と「後」を比べて、その作品への票が増えた／減ったときだけ vc を ±1 できる
+    function voteCount(tid, cid) {
+      let vref = /databases/$(database)/documents/votes/$(tid + '_' + request.auth.uid);
+      let had = exists(vref) && (cid in get(vref).data.v);
+      let has = cid in getAfter(vref).data.v;
+      return signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['vc'])
+        && themeDoc(tid).data.status == 'open'
+        && ((request.resource.data.vc == resource.data.vc + 1 && has && !had)
+          || (request.resource.data.vc == resource.data.vc - 1 && had && !has));
+    }
 
     // テーマ（月ごとのお題とパレット）
     match /themes/{tid} {
@@ -23,9 +35,11 @@ service cloud.firestore {
       // カード
       match /cards/{cid} {
         allow read: if true;
+        // ID は自動の20文字だけ（画面のHTMLにIDを埋め込むので、記号入りのIDは通さない）
         allow create: if signedIn()
+          && isId(cid)
           && themeDoc(tid).data.status == 'open'
-          && request.resource.data.keys().hasOnly(['uid', 'tid', 'tno', 'no', 'by', 'name', 'text', 'p', 'px', 'fan', 'base', 'baseNo', 'hidden', 'deleted', 'anon', 'createdAt', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['uid', 'tid', 'tno', 'no', 'by', 'name', 'text', 'p', 'px', 'fan', 'base', 'baseNo', 'hidden', 'deleted', 'anon', 'vc', 'createdAt', 'updatedAt'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.tid == tid
           && request.resource.data.tno == themeDoc(tid).data.no
@@ -36,19 +50,26 @@ service cloud.firestore {
           && request.resource.data.p in [0, 1, 2]
           && request.resource.data.px is string && request.resource.data.px.size() == 1024 && request.resource.data.px.matches('^[0-9a-f]+$')
           && request.resource.data.fan is bool
-          && (request.resource.data.base == null || isStr(request.resource.data.base, 1, 64))
+          && (request.resource.data.base == null || (request.resource.data.base is string && isId(request.resource.data.base)))
           && (request.resource.data.baseNo == null || isStr(request.resource.data.baseNo, 1, 20))
           && request.resource.data.hidden == false
           && request.resource.data.deleted == false
           && request.resource.data.anon == false
+          && request.resource.data.vc == 0
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time;
-        // 作者は受付中だけ自分の作品を消せる（消した印を付ける）
+        // 票数（人気順に使う）：票の保存と同じまとめ書きで、入れた作品は+1、取り消した作品は-1だけ動かせる
+        allow update: if voteCount(tid, cid);
+        // 作者は受付中だけ自分の作品を消せる（消した印を付けて、絵・名前・ひとこと・作者名を空にする）
         allow update: if isAdmin() || (signedIn()
           && resource.data.uid == request.auth.uid
           && themeDoc(tid).data.status == 'open'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'updatedAt', 'px', 'name', 'text', 'by'])
           && request.resource.data.deleted == true
+          && request.resource.data.px is string && request.resource.data.px.size() == 1024 && request.resource.data.px.matches('^0+$')
+          && request.resource.data.name == ''
+          && request.resource.data.text == ''
+          && request.resource.data.by == ''
           && request.resource.data.updatedAt == request.time);
         allow delete: if isAdmin();
       }
@@ -83,6 +104,7 @@ service cloud.firestore {
     match /requests/{rid} {
       allow read, update, delete: if isAdmin();
       allow create: if signedIn()
+        && isId(rid)
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.at == request.time
         && request.resource.data.done == false
@@ -95,8 +117,8 @@ service cloud.firestore {
           ||
           (request.resource.data.type in ['del', 'hide']
             && request.resource.data.keys().hasOnly(['type', 'uid', 'at', 'done', 'tid', 'cid', 'no', 'reason'])
-            && isStr(request.resource.data.tid, 1, 64)
-            && isStr(request.resource.data.cid, 1, 64)
+            && request.resource.data.tid is string && isId(request.resource.data.tid)
+            && request.resource.data.cid is string && isId(request.resource.data.cid)
             && isStr(request.resource.data.no, 1, 20)
             && exists(/databases/$(database)/documents/themes/$(request.resource.data.tid)/cards/$(request.resource.data.cid))
             && (
@@ -110,6 +132,11 @@ service cloud.firestore {
 
     // 管理者用の設定（票の重みなど）
     match /config/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // 削除・非表示・作者名非表示にした作品の元の内容（管理者だけ。取り消しと確認に使う）
+    match /vault/{id} {
       allow read, write: if isAdmin();
     }
   }

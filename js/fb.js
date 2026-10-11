@@ -1,7 +1,9 @@
 /* Firebase の読み込み。
-   URL に ?mock を付けると、Firebase につながない「確認モード」になる（?mock=0 で解除）。 */
+   URL に ?mock を付けると、Firebase につながない「確認モード」になる（?mock=0 で解除）。
+   確認モードはこのパソコンで開いたとき（localhost など）だけ。公開したサイトでは ?mock を付けても動かない。 */
 let mockOn = false;
-try {
+const LOCAL = ['localhost', '127.0.0.1', '[::1]', ''].includes(location.hostname);
+if (LOCAL) try {
   const q = new URLSearchParams(location.search);
   if (q.has('mock')) localStorage.setItem('dp-mock', q.get('mock') === '0' ? '0' : '1');
   mockOn = localStorage.getItem('dp-mock') === '1';
@@ -12,7 +14,7 @@ export const {
   app, auth, db, CONFIGURED,
   onAuthStateChanged, signInAnonymously, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, signOut,
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit,
-  runTransaction, serverTimestamp, Timestamp, writeBatch
+  runTransaction, serverTimestamp, Timestamp, writeBatch, startAfter, increment, getCountFromServer
 } = m;
 
 if (MOCK) {

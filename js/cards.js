@@ -156,7 +156,7 @@ export function cardImg(c, mode) {
 export function cardHTML(c, mode = 'full', extra = '', scale = 2) {
   const cls = mode === 'full' ? `s-${c.star}` : mode === 'sil' ? 'sil' : '';
   const label = mode === 'sil' ? '未所持のカード' : `${c.name}${mode === 'full' ? ` ${c.attr ? ATTR_L[c.attr] : ''} 星${c.star}` : ''}`;
-  return `<div class="card ${cls}"${mode !== 'sil' && c.id && c.id !== '_p' ? ` data-cid="${c.id}"` : ''}><img class="cimg" src="${cardImg(c, mode)}" width="${CW * scale}" height="${CH * scale}" alt="${esc(label)}">${extra}</div>`;
+  return `<div class="card ${cls}"${mode !== 'sil' && c.id && c.id !== '_p' ? ` data-cid="${esc(c.id)}"` : ''}><img class="cimg" src="${cardImg(c, mode)}" width="${CW * scale}" height="${CH * scale}" alt="${esc(label)}">${extra}</div>`;
 }
 
 /* カードの裏：枠＋市松＋「？」 */
@@ -227,7 +227,7 @@ export function pull(cards) {
   const out = [];
   for (let i = 0; i < 5; i++) {
     const r = Math.random(); const want = i === 4 ? (r < .2 ? 4 : 3) : (r < .03 ? 4 : r < .15 ? 3 : r < .45 ? 2 : 1);
-    const k = order[want].find(k => by[k].length); if (!k) break;
+    const k = (i === 4 ? [want, 4, 3, 2, 1] : order[want]).find(k => by[k].length); if (!k) break;   // 5枚目は★3がなければ★4を先に探す
     const pool = by[k]; out.push(pool[Math.floor(Math.random() * pool.length)]);
   }
   return out;

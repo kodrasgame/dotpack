@@ -136,6 +136,8 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .chip{border:2px solid var(--line);background:var(--surface);padding:0 12px;line-height:1.5}
 .chip[aria-pressed="true"]{border-color:var(--fg);background:var(--fg);color:var(--bg)}
+.more{text-align:center;margin:24px 0 0}
+.more .btn{min-width:12em}
 .prog{font-size:40px;line-height:1.2;margin:0 0 14px}
 .prog small{font-size:20px;color:var(--muted);margin-left:10px}
 

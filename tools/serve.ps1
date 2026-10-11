@@ -1,6 +1,6 @@
 # Local static server for checking DotPack (no install needed). Stop with Ctrl+C or close the window.
 param([int]$Port = 8000, [string]$Open = "index.html")
-$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..")).TrimEnd('\') + '\'
 $mime = @{
   ".html" = "text/html; charset=utf-8"; ".js" = "text/javascript; charset=utf-8"; ".css" = "text/css; charset=utf-8";
   ".json" = "application/json; charset=utf-8"; ".woff2" = "font/woff2"; ".png" = "image/png"; ".svg" = "image/svg+xml";
@@ -24,7 +24,7 @@ while ($listener.IsListening) {
     $rel = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath).TrimStart('/')
     if ($rel -eq "") { $rel = "index.html" }
     $full = [IO.Path]::GetFullPath((Join-Path $root $rel))
-    if ($full.StartsWith($root) -and (Test-Path -LiteralPath $full -PathType Leaf)) {
+    if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $full -PathType Leaf)) {
       $bytes = [IO.File]::ReadAllBytes($full)
       $ext = [IO.Path]::GetExtension($full).ToLower()
       $res.ContentType = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { "application/octet-stream" }

@@ -11,7 +11,7 @@
 <body>
 <div class="wrap">
   <div class="topbar">
-    <p class="logo"><img src="img/logo.png" width="144" height="32" alt="ドットパック"></p>
+    <p class="logo"><img src="img/logo.png" width="159" height="36" alt="ドットパック"></p>
     <button class="plus" id="plusBtn" aria-label="カードをつくる"><span aria-hidden="true">＋</span>つくる</button>
   </div>
 
@@ -67,8 +67,13 @@
   </section>
 
   <section id="tab-vote" hidden>
+    <div class="chips" id="voteSort" role="group" aria-label="並び順" hidden>
+      <button class="chip" data-sort="new">新着順</button>
+      <button class="chip" data-sort="pop">人気順</button>
+    </div>
     <p class="note" id="voteNote"></p>
     <div class="grid" id="voteGrid"></div>
+    <p class="more"><button class="btn" id="voteMore" hidden>もっと見る</button></p>
   </section>
 
   <section id="tab-packs" hidden>

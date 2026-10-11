@@ -4,7 +4,7 @@ import {
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, serverTimestamp, writeBatch
 } from './fb.js';
 import { ADMIN_UID } from './config.js';
-import { $, esc, ATTRS, ATTR_L, fmtNo, parseNo, PALETTES, artURL, cardHTML, clearCardCache, loadCardFont, assignStars } from './cards.js';
+import { $, esc, ATTRS, ATTR_L, N, fmtNo, parseNo, PALETTES, artURL, cardHTML, clearCardCache, loadCardFont, assignStars } from './cards.js';
 
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600) }
@@ -15,8 +15,9 @@ const REASON_L = {
 };
 const fmtDate = t => { if (!t) return ''; const d = t.toDate ? t.toDate() : new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` };
 
-const A = { tab: 'req', themes: [], cardsByTheme: new Map(), requests: [], gw: 3, arm: null, onlyOpen: true, cardTheme: null, q: '' };
-const openTheme = () => A.themes.find(t => t.status === 'open') || null;
+const A = { tab: 'req', themes: [], cardsByTheme: new Map(), reqCards: new Map(), requests: [], gw: 3, arm: null, onlyOpen: true, cardTheme: null, q: '' };
+/* 'closing' は締め切りの集計中（投稿・投票はもう止まっている）。途中で失敗したときはやり直せる */
+const openTheme = () => A.themes.find(t => t.status === 'open' || t.status === 'closing') || null;
 
 /* ---------- ログイン ---------- */
 $('#login').onclick = () => signInWithPopup(auth, new GoogleAuthProvider()).catch(e => toast('ログインできませんでした'));
@@ -45,22 +46,36 @@ async function loadAll() {
 async function loadRequests() {
   const rs = await getDocs(query(collection(db, 'requests'), orderBy('at', 'desc'), limit(200)));
   A.requests = rs.docs.map(d => ({ id: d.id, ...d.data() }));
+  A.reqCards.clear();
 }
+/* 削除・非表示・作者名非表示にした作品は、公開のカードから中身を消して、元の内容を vault（管理者だけが読める）に移す。
+   管理画面では元の内容を重ねて表示する。 */
+const SECRET = ['uid', 'by', 'name', 'text', 'px'];
+const EMPTY = '0'.repeat(N * N);
+const vaultRef = c => doc(db, 'vault', c.tid + '_' + c.id);
 async function loadCards(tid, force) {
   if (!force && A.cardsByTheme.has(tid)) return A.cardsByTheme.get(tid);
-  const cs = await getDocs(collection(db, 'themes', tid, 'cards'));
-  const list = cs.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.no - b.no);
+  const [cs, vs] = await Promise.all([getDocs(collection(db, 'themes', tid, 'cards')), getDocs(query(collection(db, 'vault'), where('tid', '==', tid)))]);
+  const vault = new Map(vs.docs.map(d => [d.data().cid, d.data().data]));
+  const list = cs.docs.map(d => ({ id: d.id, ...d.data(), ...(vault.get(d.id) || {}) })).sort((a, b) => a.no - b.no);
   A.cardsByTheme.set(tid, list); return list;
 }
 async function reqCard(r) {
   if (!r.tid || !r.cid) return null;
   const list = A.cardsByTheme.get(r.tid);
   if (list) return list.find(c => c.id === r.cid) || null;
-  const d = await getDoc(doc(db, 'themes', r.tid, 'cards', r.cid));
-  return d.exists() ? { id: d.id, ...d.data() } : null;
+  const key = r.tid + '/' + r.cid;
+  if (A.reqCards.has(key)) return A.reqCards.get(key);
+  const [d, v] = await Promise.all([getDoc(doc(db, 'themes', r.tid, 'cards', r.cid)), getDoc(doc(db, 'vault', r.tid + '_' + r.cid))]);
+  const c = d.exists() ? { id: d.id, ...d.data(), ...(v.exists() ? v.data().data : {}) } : null;
+  A.reqCards.set(key, c); return c;
 }
+/* c はいつも元の内容を持っている（vault を重ねてある） */
 async function patchCard(c, data) {
-  await updateDoc(doc(db, 'themes', c.tid, 'cards', c.id), { ...data, updatedAt: serverTimestamp() });
+  const next = { ...c, ...data }, gone = next.deleted || next.hidden;
+  if (gone || next.anon) await setDoc(vaultRef(c), { tid: c.tid, cid: c.id, data: Object.fromEntries(SECRET.map(k => [k, c[k] ?? ''])) });
+  const pub = gone ? { uid: '', by: '', name: '', text: '', px: EMPTY } : next.anon ? { uid: '', by: '', name: c.name, text: c.text || '', px: c.px } : Object.fromEntries(SECRET.map(k => [k, c[k] ?? '']));
+  await updateDoc(doc(db, 'themes', c.tid, 'cards', c.id), { ...data, ...pub, updatedAt: serverTimestamp() });
   Object.assign(c, data);
 }
 
@@ -84,11 +99,11 @@ async function renderReq() {
       const c = await reqCard(r);
       body = `<div class="req-b">${c ? `<img src="${artURL(c)}" alt="">` : ''}<div><b>${c ? esc(c.name) : '（見つからない作品）'}</b><span>${esc(r.no)}${c ? ` ・ by ${esc(c.by)}` : ''}${c && c.hidden ? ' ・ 非表示中' : ''}${c && c.deleted ? ' ・ 削除済み' : ''}</span><span>理由：${esc(REASON_L[r.reason] || r.reason)}</span></div></div>`;
       if (c && !r.done) {
-        if (r.type === 'del') acts += `<button class="btn" data-ra="hide" data-id="${r.id}">非表示にする</button><button class="btn" data-ra="delete" data-id="${r.id}">${A.arm === 'r' + r.id ? 'もう一度押すと削除' : '作品を削除'}</button>`;
-        if (r.type === 'hide') acts += `<button class="btn" data-ra="anon" data-id="${r.id}">作者名を非表示にする</button>`;
+        if (r.type === 'del') acts += `<button class="btn" data-ra="hide" data-id="${esc(r.id)}">非表示にする</button><button class="btn" data-ra="delete" data-id="${esc(r.id)}">${A.arm === 'r' + r.id ? 'もう一度押すと削除' : '作品を削除'}</button>`;
+        if (r.type === 'hide') acts += `<button class="btn" data-ra="anon" data-id="${esc(r.id)}">作者名を非表示にする</button>`;
       }
     }
-    acts += `<button class="btn" data-ra="done" data-id="${r.id}">${r.done ? '未対応にもどす' : '対応済みにする'}</button>`;
+    acts += `<button class="btn" data-ra="done" data-id="${esc(r.id)}">${r.done ? '未対応にもどす' : '対応済みにする'}</button>`;
     return `<div class="req ${r.done ? 'done' : ''}"><div class="req-h"><span class="badge ${r.type}">${TYPE_L[r.type]}</span><span>${fmtDate(r.at)}</span>${r.done ? '<span>対応済み</span>' : ''}</div>${body}<div class="acts">${acts}</div></div>`;
   }));
   $('#adm-req').innerHTML = `<div class="adm-bar"><label class="chk" style="margin:0"><input type="checkbox" id="onlyOpen" ${A.onlyOpen ? 'checked' : ''}><span>未対応だけ表示</span></label><button class="btn small" id="reloadReq">再読み込み</button></div><div class="reqs">${items.join('') || '<p class="empty">お問い合わせはありません。</p>'}</div>`;
@@ -118,14 +133,14 @@ async function renderCards() {
   const list = await loadCards(th.id);
   const q = A.q.trim(), n = parseNo(q);
   const cards = n ? list.filter(c => c.no === n.no && c.tno === n.tno) : list;
-  const chips = A.themes.slice().reverse().map(t => `<button class="chip" data-ath="${t.id}" aria-pressed="${t.id === th.id}">${t.no}. ${esc(t.name)}${t.status === 'open' ? '（受付中）' : ''}</button>`).join('');
+  const chips = A.themes.slice().reverse().map(t => `<button class="chip" data-ath="${esc(t.id)}" aria-pressed="${t.id === th.id}">${t.no}. ${esc(t.name)}${t.status === 'open' ? '（受付中）' : ''}</button>`).join('');
   const cells = cards.map(c => {
     const tags = [c.deleted && '削除済み', c.hidden && '非表示', c.fan && 'パック対象外', c.anon && '作者名非表示'].filter(Boolean).map(t => `<span class="stag on">${t}</span>`).join('');
     return `<div class="adm-cell ${c.hidden || c.deleted ? 'off' : ''}">${cardHTML(c, c.star ? 'full' : 'pending')}<div class="cap"><span>by ${esc(c.by)}</span></div><div class="stags">${tags}</div><div class="acts">
-      <button class="btn" data-ca="hidden" data-id="${c.id}">${c.hidden ? '表示する' : '非表示'}</button>
-      <button class="btn" data-ca="fan" data-id="${c.id}">${c.fan ? 'パックに入れる' : 'パック対象外'}</button>
-      <button class="btn" data-ca="anon" data-id="${c.id}">${c.anon ? '作者名を出す' : '作者名を隠す'}</button>
-      <button class="btn" data-ca="deleted" data-id="${c.id}">${c.deleted ? '削除を取り消す' : A.arm === 'c' + c.id ? 'もう一度押すと削除' : '削除'}</button></div></div>`
+      <button class="btn" data-ca="hidden" data-id="${esc(c.id)}">${c.hidden ? '表示する' : '非表示'}</button>
+      <button class="btn" data-ca="fan" data-id="${esc(c.id)}">${c.fan ? 'パックに入れる' : 'パック対象外'}</button>
+      <button class="btn" data-ca="anon" data-id="${esc(c.id)}">${c.anon ? '作者名を出す' : '作者名を隠す'}</button>
+      <button class="btn" data-ca="deleted" data-id="${esc(c.id)}">${c.deleted ? '削除を取り消す' : A.arm === 'c' + c.id ? 'もう一度押すと削除' : '削除'}</button></div></div>`
   }).join('');
   $('#adm-cards').innerHTML = `<div class="adm-bar"><input type="text" id="admQ" placeholder="作品番号 0003-2" value="${esc(q)}" autocomplete="off"><button class="btn small" id="reloadCards">再読み込み</button></div><div class="chips">${chips}</div>
     ${th.status === 'closed' ? '<p class="hint">締め切り済みのパックを変えたときは、「パック書き出し」でJSONを作り直してGitHubに上げてください。</p>' : ''}
@@ -150,6 +165,7 @@ function renderClose() {
     <div><h3><label for="gw">Google連携ユーザーの票の重み</label></h3>
       <select id="gw">${[1, 2, 3].map(n => `<option value="${n}" ${A.gw === n ? 'selected' : ''}>1票を ${n} 票として数える</option>`).join('')}</select>
       <p class="hint">この設定はサイトには表示されません。</p></div>
+    ${th && th.status === 'closing' ? '<p class="err">前回の締め切りが途中で止まっています。投稿と投票は止まっています。「集計して締め切る」でやり直してください。</p>' : ''}
     ${th ? `<div><h3>受付中のテーマ</h3><dl class="kv"><dt>パック</dt><dd>${th.no}. ${esc(th.name)}</dd><dt>月</dt><dd>${esc(th.month)}</dd><dt>投稿番号</dt><dd>${th.seq || 0} まで</dd></dl></div>
     <p class="hint">締め切ると、票を集計して星と系統を決め、パックのJSONを書き出します。締め切ったあとは投稿と投票ができなくなります。</p>
     <div><button class="btn primary" id="doClose">${A.arm === 'close' ? 'もう一度押すと締め切ります' : '集計して締め切る'}</button></div>
@@ -164,6 +180,8 @@ $('#adm-close').addEventListener('click', async e => {
   const log = m => { $('#closeLog').textContent = m };
   const th = openTheme();
   try {
+    /* 先に投稿と投票を止めてから集計する（集計中に入った投稿や票が抜け落ちないように） */
+    if (th.status === 'open') { log('投稿と投票を止めています…'); await updateDoc(doc(db, 'themes', th.id), { status: 'closing' }); th.status = 'closing' }
     log('作品と票を読み込んでいます…');
     const cards = await loadCards(th.id, true);
     const byId = new Map(cards.map(c => [c.id, c]));
@@ -189,7 +207,10 @@ $('#adm-close').addEventListener('click', async e => {
     await exportPack(th);
     log('締め切りました。ダウンロードした2つのファイルを GitHub の packs フォルダに上げてください。');
     toast('締め切りました');
-  } catch (err) { console.warn(err); log('途中で失敗しました：' + (err.message || err)); e.target.disabled = false }
+  } catch (err) {
+    console.warn(err); e.target.disabled = false;
+    log('途中で失敗しました：' + (err.message || err) + (th.status === 'closing' ? '（投稿と投票は止まったままです。もう一度押すと続きからやり直せます）' : ''));
+  }
 });
 
 /* パックのJSONを作ってダウンロード（packs/0001.json と packs/index.json） */
@@ -219,7 +240,7 @@ async function exportPack(th) {
 function renderExport() {
   const closed = A.themes.filter(t => t.status === 'closed');
   $('#adm-export').innerHTML = `<div class="adm-form"><p class="hint">締め切ったパックの作品を非表示にしたり作者名を隠したりしたときは、ここでJSONを作り直して、GitHub の packs フォルダのファイルを置き換えてください。</p>
-    ${closed.map(t => `<div><button class="btn" data-exp="${t.id}">${t.no}. ${esc(t.name)} を書き出す</button></div>`).join('') || '<p class="empty">締め切ったパックはまだありません。</p>'}</div>`;
+    ${closed.map(t => `<div><button class="btn" data-exp="${esc(t.id)}">${t.no}. ${esc(t.name)} を書き出す</button></div>`).join('') || '<p class="empty">締め切ったパックはまだありません。</p>'}</div>`;
 }
 $('#adm-export').addEventListener('click', async e => { const b = e.target.closest('[data-exp]'); if (!b) return; try { await exportPack(A.themes.find(t => t.id === b.dataset.exp)); toast('書き出しました') } catch (err) { toast('書き出せませんでした') } });
 
