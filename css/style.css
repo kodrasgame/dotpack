@@ -233,6 +233,8 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 .stag{border:2px solid var(--line);padding:0 4px;color:var(--muted);line-height:1.2}
 .stag.on{border-color:var(--err);color:var(--err)}
 .adm-form{display:flex;flex-direction:column;gap:18px;max-width:34em}
+.adm-form textarea{width:100%;box-sizing:border-box;border:2px solid var(--fg);background:var(--surface);padding:6px 8px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.pal-io{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .adm-form h3{font-size:20px;margin:0 0 6px;padding-left:10px;border-left:6px solid var(--fg)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 16px;margin:0}
 .kv dt{color:var(--muted)}

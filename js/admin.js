@@ -263,6 +263,9 @@ function renderTheme() {
     ${pals.map((p, i) => `<div class="paled"><h3><input type="text" class="pname" data-i="${i}" value="${esc(p.name)}" maxlength="12" aria-label="パレット${i + 1}の名前"></h3>
       <div class="pcols">${p.colors.map((c, j) => `<input type="color" data-i="${i}" data-j="${j}" value="${c}" aria-label="パレット${i + 1}の${j + 1}色目">`).join('')}</div></div>`).join('')}
     <p class="hint">各パレットは15色です（透明は自動で付きます）。1色目は一番暗い色にしておくと描きやすくなります。</p>
+    <div><h3><label for="palText">パレットをまとめて貼り付け</label></h3>
+      <textarea id="palText" rows="4" spellcheck="false" placeholder="1行に1パレット：名前 #1c1c28 #ffffff …（15色）"></textarea>
+      <div class="pal-io"><button class="btn small" id="palImport">貼った内容を読み込む</button><button class="btn small" id="palExport">今のパレットを書き出す</button></div></div>
     <div><button class="btn primary" id="makeTheme" ${th ? 'disabled' : ''}>このテーマを始める</button></div>
   </div>`;
 }
@@ -271,7 +274,29 @@ $('#adm-theme').addEventListener('input', e => {
   if (e.target.classList.contains('pname')) pals[i].name = e.target.value;
   if (e.target.type === 'color') pals[i].colors[+e.target.dataset.j] = e.target.value;
 });
+/* パレットの貼り付け：1行に1パレット「名前 #xxxxxx …15色」。名前は省略できる。3行まで */
+const palToText = () => pals.map(p => `${p.name} ${p.colors.join(' ')}`).join('\n');
+function textToPals(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean), out = [];
+  for (const l of lines) {
+    const cols = (l.match(/#?[0-9a-f]{6}\b/gi) || []).map(c => '#' + c.replace('#', '').toLowerCase());
+    if (!cols.length) continue;
+    if (cols.length !== 15) return { err: `${out.length + 1}行目の色が${cols.length}色です（15色にしてください）` };
+    const name = l.slice(0, l.search(/#?[0-9a-f]{6}\b/i)).replace(/[:：\s]+$/, '').trim();
+    out.push({ name: (name || `パレット${out.length + 1}`).slice(0, 12), colors: cols });
+  }
+  if (!out.length) return { err: '色が見つかりませんでした' };
+  if (out.length > 3) return { err: 'パレットは3つまでです' };
+  return { pals: out };
+}
+function rerenderTheme() { const n = $('#tName').value, m = $('#tMonth').value; renderTheme(); $('#tName').value = n; $('#tMonth').value = m }
 $('#adm-theme').addEventListener('click', async e => {
+  if (e.target.id === 'palExport') { $('#palText').value = palToText(); $('#palText').select(); return }
+  if (e.target.id === 'palImport') {
+    const r = textToPals($('#palText').value);
+    if (r.err) { toast(r.err); return }
+    r.pals.forEach((p, i) => { pals[i] = p }); rerenderTheme(); toast(`${r.pals.length}つのパレットを読み込みました`); return;
+  }
   if (e.target.id !== 'makeTheme') return;
   const name = $('#tName').value.trim(), month = $('#tMonth').value;
   if (!name) { toast('テーマ名を入れてください'); return }
