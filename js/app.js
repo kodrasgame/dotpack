@@ -311,7 +311,13 @@ function flood(i, v) {
   ed.px = arr.join('');
 }
 function cellAt(e) { const r = cv.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N); return (x < 0 || y < 0 || x >= N || y >= N) ? -1 : y * N + x }
-const ptrs = new Map(); let mode = null, stroke = false, lastCell = -1;
+const ptrs = new Map(); let mode = null, stroke = false, lastCell = -1, shiftFrom = null;
+function rawCell(e) { const r = cv.getBoundingClientRect(); return { x: Math.floor((e.clientX - r.left) / r.width * N), y: Math.floor((e.clientY - r.top) / r.height * N) } }
+function shifted(px, dx, dy) {
+  if (!dx && !dy) return px; let o = '';
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const sx = x - dx, sy = y - dy; o += (sx < 0 || sy < 0 || sx >= N || sy >= N) ? '0' : px[sy * N + sx] }
+  return o;
+}
 function line(a, b, v) {
   let x0 = a % N, y0 = a / N | 0; const x1 = b % N, y1 = b / N | 0, dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx + dy;
   for (; ;) { setPx(y0 * N + x0, v); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx } if (e2 <= dx) { err += dx; y0 += sy } }
@@ -325,7 +331,7 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault(); cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 2) { if (stroke) { ed.px = ed.hist.pop(); stroke = false; drawEditor() } mode = 'pan'; return }
   if (ptrs.size > 2) return;
-  if (ed.tool === 'move') { mode = 'pan'; return }
+  if (ed.tool === 'move') { ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift(); stroke = true; mode = 'shift'; shiftFrom = { px: ed.px, ...rawCell(e) }; return }
   ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift(); stroke = true; lastCell = -1;
   mode = ed.tool === 'fill' ? null : 'draw'; paint(e);
 });
@@ -333,11 +339,12 @@ cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
   if (mode === 'pan') { view.scrollLeft -= (e.clientX - p.x) / ptrs.size; view.scrollTop -= (e.clientY - p.y) / ptrs.size }
   else if (mode === 'draw') paint(e);
+  else if (mode === 'shift') { const c = rawCell(e), px = shifted(shiftFrom.px, c.x - shiftFrom.x, c.y - shiftFrom.y); if (px !== ed.px) { ed.px = px; drawEditor() } }
   p.x = e.clientX; p.y = e.clientY;
 });
 const endDraw = e => {
   ptrs.delete(e.pointerId); if (ptrs.size) return;
-  if (stroke) { saveDraft(); renderPreview() }
+  if (stroke) { if (ed.px === ed.hist[ed.hist.length - 1]) ed.hist.pop(); else { saveDraft(); renderPreview() } }
   mode = null; stroke = false; lastCell = -1;
 };
 cv.addEventListener('pointerup', endDraw); cv.addEventListener('pointercancel', endDraw);
