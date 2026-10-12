@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>テストデータ</title>
+</head>
+<body style="font-family:sans-serif;padding:24px">
+<p id="msg">テストデータを作っています…</p>
+<script>
+/* 動作テスト.bat から開くページ。確認モード（?mock）用のテストデータを作って、トップページへ移る。
+   本物の Firebase には何も書かない（このパソコンのブラウザの中だけ）。 */
+(() => {
+  const N = 32, CARDS = 24, PACK_CARDS = 30, VOTERS = 12;
+  const ATTRS = ['cute', 'cool', 'strong', 'weird', 'passion'];
+  const NAMES = ['まるいの', 'ころころ', 'ぽっちり', 'たまご', 'おだんご', 'しずく', 'まんまる', 'ぽんぽん', 'こだま', 'つぶつぶ', 'わっか', 'ほし', 'くるり', 'ぷにぷに', 'まめ'];
+  const BY = ['テスト太郎', 'ドット花子', 'ななしさん', 'まる職人', 'ぴくせる'];
+  const pal = (name, colors) => ({ name, colors });
+  const PALS = [
+    pal('げんき', ['#1c1c1c', '#ffffff', '#e0453a', '#f28c28', '#f2c12e', '#8fd14f', '#2f9a5c', '#3fb6dc', '#3f7fdc', '#7b4bb8', '#ef6aa0', '#f6c6a8', '#8a5a3c', '#9aa3b1', '#5a5a5a']),
+    pal('ふんわり', ['#1c1c1c', '#ffffff', '#f7b2c4', '#fbd3a5', '#fbeaa0', '#c8e6a0', '#a8dcc8', '#a8d4f0', '#b8b8f0', '#d8b8f0', '#f0c8e0', '#f6e2d0', '#c8a890', '#d0d4dc', '#8a8a8a']),
+    pal('よふかし', ['#0b0b14', '#f4f4ff', '#2a2a4a', '#3a3a7a', '#5050b0', '#7070e0', '#a0a0ff', '#40c0c0', '#f0d060', '#e07070', '#c050a0', '#6a4a8a', '#30303a', '#9090a0', '#505060']),
+  ];
+  const rnd = n => Math.floor(Math.random() * n);
+  const pick = a => a[rnd(a.length)];
+  const id = () => { const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; let s = ''; for (let i = 0; i < 20; i++) s += c[rnd(c.length)]; return s };
+  const hex = v => v.toString(16);
+  /* 丸の絵：中の色・ふちの色・光の点 */
+  function circle() {
+    const r = 5 + rnd(10), cx = r + 1 + rnd(N - 2 * r - 2), cy = r + 1 + rnd(N - 2 * r - 2);
+    const fill = 3 + rnd(12), edge = 1, shine = 2;
+    let s = '';
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      let v = 0;
+      if (d <= r - 1) v = fill;
+      else if (d <= r) v = edge;
+      if (v === fill && Math.abs(x - (cx - r / 2.5)) <= 1 && Math.abs(y - (cy - r / 2.5)) <= 1) v = shine;
+      s += hex(v);
+    }
+    return s;
+  }
+  const now = Date.now(), month = new Date().toISOString().slice(0, 7);
+  const db = {}, ts = ms => ({ __ts: ms });
+
+  /* 受付中のテーマ（No.2）とカード */
+  db['themes/t2'] = { no: 2, name: 'テスト用テーマ', month, status: 'open', palettes: PALS, seq: CARDS, createdAt: ts(now - 864e5 * 5) };
+  const open = [];
+  for (let i = 1; i <= CARDS; i++) {
+    const cid = id(), c = {
+      uid: 'tester' + rnd(5), tid: 't2', tno: 2, no: i, by: pick(BY), name: pick(NAMES), text: i % 3 ? '' : 'テストのひとこと',
+      p: rnd(3), px: circle(), fan: i === 5, base: null, baseNo: null, hidden: false, deleted: false, anon: i === 7, vc: 0,
+      createdAt: ts(now - (CARDS - i) * 36e5), updatedAt: ts(now - (CARDS - i) * 36e5)
+    };
+    if (i === 9 && open[0]) { c.base = open[0].id; c.baseNo = 'No.0001-2' }
+    open.push({ id: cid, c }); db['themes/t2/cards/' + cid] = c;
+  }
+  /* ほかの人の票（締め切りの集計を試せるように） */
+  for (let k = 0; k < VOTERS; k++) {
+    const uid = 'voter' + k, v = {};
+    for (const o of open) if (Math.random() < .5 && o.c.uid !== uid) { v[o.id] = pick(ATTRS); o.c.vc++ }
+    db['votes/t2_' + uid] = { uid, tid: 't2', google: k % 3 === 0, v, updatedAt: ts(now) };
+  }
+
+  /* 締め切ったテーマ（No.1）とパック */
+  db['themes/t1'] = { no: 1, name: 'テスト用パック', month: '2026-09', status: 'closed', palettes: PALS, seq: PACK_CARDS, createdAt: ts(now - 864e5 * 40), closedAt: ts(now - 864e5 * 10) };
+  const cards = [];
+  for (let i = 1; i <= PACK_CARDS; i++) {
+    const attr = ATTRS[i % 5], r = Math.random();
+    const star = i <= 5 ? 4 : r < .15 ? 3 : r < .45 ? 2 : 1;   // 系統ごとに1枚ずつ★4
+    cards.push({ id: id(), no: i, name: pick(NAMES), text: '', by: pick(BY), anon: false, p: rnd(3), px: circle(), star, attr, base: null, baseNo: null });
+  }
+  const pack = { no: 1, tid: 't1', name: 'テスト用パック', month: '2026-09', palettes: PALS, cards };
+  const index = [{ no: 1, tid: 't1', name: 'テスト用パック', month: '2026-09', count: cards.length, palettes: PALS, cover: { px: cards[0].px, p: cards[0].p }, ids: cards.map(c => c.id) }];
+
+  /* 前の確認用データを消してから入れる */
+  for (const k of Object.keys(localStorage)) if (k.startsWith('mock') || k.startsWith('dp-')) localStorage.removeItem(k);
+  try { sessionStorage.clear() } catch (e) { }
+  localStorage.setItem('dp-mock', '1');
+  localStorage.setItem('mockdb', JSON.stringify(db));
+  localStorage.setItem('mock-packs', JSON.stringify({ index, packs: { 1: pack } }));
+  document.getElementById('msg').textContent = 'できました。トップページを開きます…';
+  location.href = '../index.html?mock';
+})();
+</script>
+</body>
+</html>

@@ -122,11 +122,19 @@ function drawMark(x, a) {
 const tcan = document.createElement('canvas'); tcan.width = CW; tcan.height = 12;
 const tctx = tcan.getContext('2d');
 const FONT = '10px "BestTenDOT"';
+/* ブラウザの文字描画は、ふちに半透明の点を足すことがある（Windows などで文字がにじむ）。
+   そこで10倍の大きさで描いて、各ドットの真ん中が塗られているかだけを見て、1ドットずつ打つ。どの端末でも同じ見た目になる */
+const TS = 10;
+const bcan = document.createElement('canvas'); bcan.width = CW * TS; bcan.height = 12 * TS;
+const bctx = bcan.getContext('2d', { willReadFrequently: true });
 function ptext(ctx, str, x, y, color) {
   if (!str) return;
-  tctx.clearRect(0, 0, CW, 12); tctx.font = FONT; tctx.textBaseline = 'alphabetic'; tctx.fillStyle = color;
-  tctx.fillText(str, 0, 8.8);
-  ctx.drawImage(tcan, x, y);
+  const w = Math.min(CW - x, CW);
+  bctx.clearRect(0, 0, bcan.width, bcan.height); bctx.font = `${10 * TS}px "BestTenDOT"`; bctx.textBaseline = 'alphabetic'; bctx.fillStyle = '#000';
+  bctx.fillText(str, 0, 8.8 * TS);
+  const d = bctx.getImageData(0, 0, w * TS, 12 * TS).data, rw = w * TS;
+  ctx.fillStyle = color;
+  for (let j = 0; j < 12; j++) for (let i = 0; i < w; i++) if (d[((j * TS + TS / 2) * rw + i * TS + TS / 2) * 4 + 3] >= 128) ctx.fillRect(x + i, y + j, 1, 1);
 }
 const NO_HEAD = '。、．，！？」』）ー〜…・';
 export function wrapText(str, maxW) {
