@@ -27,7 +27,7 @@ const S = {
   cards: new Map(),     // 読み込んだ受付中のカード id -> card
   sort: store.get('dp-sort', 'new'),   // 投票の並び順 new（新着順）/ pop（人気順）
   feeds: {},            // 並び順ごとの読み込み状況 { ids, cursor, done, loading, failed }
-  count: 0,             // 受付中のカードの枚数（削除・非表示を除く）
+  count: null,             // 受付中のカードの枚数（削除・非表示を除く）
   myVotes: {},          // cardId -> 系統
   packIndex: [],        // 締め切ったパックの一覧（packs/index.json）
   packs: new Map(),     // パック番号 -> パックの中身
@@ -71,7 +71,7 @@ function renderHeader() {
   $('#thName').textContent = th.name;
   const [y, m] = th.month.split('-').map(Number);
   const left = Math.max(0, Math.ceil((new Date(y, m, 1) - new Date()) / 864e5));
-  $('#thMeta').innerHTML = `投稿・投票 受付中<br>のこり <b>${left}</b> 日 ・ <b>${S.count}</b> 枚`;
+  $('#thMeta').innerHTML = `投稿・投票 受付中<br>のこり <b>${left}</b> 日 ・ <b>${S.count ?? '…'}</b> 枚`;
 }
 
 /* ---------- 読み込み ---------- */
@@ -171,7 +171,7 @@ function renderVote() {
   $('#voteSort').hidden = !S.theme;
   if (!S.theme) { $('#voteNote').textContent = ''; $('#voteGrid').innerHTML = '<p class="empty">いまは投稿・投票を受け付けていません。</p>'; $('#voteMore').hidden = true; return }
   const f = feed(), uid = S.user && S.user.uid;
-  if (!f.ids.length && !f.done && !f.loading && !f.failed && S.user) more();   // 最初の1ページ
+  if (!f.ids.length && !f.done && !f.loading && !f.failed) more();   // 最初の1ページ
   const list = f.ids.map(id => S.cards.get(id)).filter(visible);
   $('#voteMore').hidden = f.done; $('#voteMore').disabled = !!f.loading; $('#voteMore').textContent = f.loading ? '読み込み中…' : 'もっと見る';
   $('#voteNote').innerHTML = `1枚につき1つ選べます。いちばん票が集まった項目がそのカードの系統になります。（投票済み ${Object.keys(S.myVotes).length} 枚）<br>はじめて投票した作品ごとにパックを開ける回数が <b>+${PACK_PER_VOTE}</b>（いま あと <b>${packsLeft()}</b> 回）`;
@@ -207,6 +207,7 @@ $('#voteGrid').addEventListener('click', async e => {
   }
   const b = e.target.closest('.vb');
   if (b) {
+    if (!S.user) return;
     const id = b.dataset.id, k = b.dataset.k;
     if (S.myVotes[id] === k) delete S.myVotes[id]; else S.myVotes[id] = k;
     saveLocalVotes(true);
@@ -692,20 +693,25 @@ $('#aLogout').onclick = async () => {
 };
 
 /* ---------- 起動 ---------- */
+let shown = false;
 async function start() {
   if (!CONFIGURED) { $('#voteGrid').innerHTML = '<p class="empty">js/config.js に Firebase の設定を書いてください。</p>'; return }
+  /* テーマとカードはだれでも読めるので、ログインを待たずに読み始める */
+  const ready = Promise.all([loadTheme(), loadPackIndex()])
+    .catch(e => { console.warn(e); toast('読み込みに失敗しました') })
+    .then(() => { shown = true; renderHeader(); setTab(MAIN.includes(S.tab) ? S.tab : 'vote'); countCards().then(renderHeader) });
+  let firstUser = true;
   onAuthStateChanged(auth, async u => {
     if (!u) { try { await signInAnonymously(auth) } catch (e) { toast('接続できませんでした') } return }
     const changed = !S.user || S.user.uid !== u.uid; S.user = u;
     if (!changed) return;
-    resetCards();
-    try {
-      await Promise.all([loadTheme(), loadPackIndex()]);
-      await Promise.all([countCards(), loadMyVotes(), mergeOwnedFromServer()]);
-    } catch (e) { console.warn(e); toast('読み込みに失敗しました') }
-    renderHeader(); setTab(MAIN.includes(S.tab) ? S.tab : 'vote');
+    await ready;
+    if (!firstUser) resetCards();
+    firstUser = false;
+    try { await Promise.all([loadMyVotes(), mergeOwnedFromServer()]) } catch (e) { console.warn(e) }
+    setTab(S.tab);
   });
-  loadCardFont().then(() => { clearCardCache(); if (S.user) setTab(S.tab) });
+  loadCardFont().then(() => { clearCardCache(); if (shown) setTab(S.tab) });
 }
 renderHeader();
 $('#voteGrid').innerHTML = '<p class="empty">読み込み中…</p>';

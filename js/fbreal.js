@@ -1,7 +1,7 @@
-/* Firebase の読み込み（バージョンを固定） */
+/* Firebase の読み込み（バージョンを固定）。Firestore は読み書きだけの軽い版（lite）を使う */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js';
 import { firebaseConfig } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
@@ -15,5 +15,5 @@ export {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 export {
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit,
-  runTransaction, serverTimestamp, Timestamp, writeBatch, startAfter, increment, getCountFromServer
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  runTransaction, serverTimestamp, Timestamp, writeBatch, startAfter, increment, getCount as getCountFromServer
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js';
