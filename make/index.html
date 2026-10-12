@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../img/icon.png">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
+<title>つくる｜ドットパック</title>
+<meta name="description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:title" content="ドットパック">
+<meta property="og:description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:image" content="https://kodras.jp/dotpack/img/apple-touch-icon.png">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preload" href="../fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../css/style.css">
+<script type="module" src="../js/make.js"></script>
+</head>
+<body data-page="make">
+<div class="wrap">
+<script src="../js/layout.js"></script>
+  <section id="tab-make">
+    <p class="empty" id="makeClosed" hidden>いまは投稿を受け付けていません。次のテーマをお待ちください。</p>
+    <div class="make" id="makeBody" hidden>
+      <div>
+        <div class="basebox" id="baseBox" hidden>
+          <img id="baseImg" alt="">
+          <div><small>元にした作品</small><b id="baseName"></b><span id="baseNo"></span></div>
+          <button class="linkbtn" id="baseClear">外す</button>
+        </div>
+        <div class="pals" id="pals"></div>
+        <div class="cv-wrap"><div class="cv-view" id="cvView"><canvas id="cv" width="512" height="512"></canvas></div></div>
+        <div class="tools" id="tools">
+          <button class="tool" data-tool="pen">ペン</button>
+          <button class="tool" data-tool="fill">塗りつぶし</button>
+          <button class="tool" data-tool="erase">消しゴム</button>
+          <button class="tool" data-tool="move">移動</button>
+          <button class="tool" id="undo">戻す</button>
+          <button class="tool" id="clear">ぜんぶ消す</button>
+          <span class="zoom"><button class="tool" id="zOut" aria-label="縮小">－</button><output id="zLbl">×1</output><button class="tool" id="zIn" aria-label="拡大">＋</button></span>
+        </div>
+        <div class="pal" id="pal"></div>
+      </div>
+      <div class="side">
+        <div id="preview"></div>
+        <div>
+          <div class="field" style="margin-top:0"><label for="fBy">作者名</label><input id="fBy" maxlength="12" autocomplete="nickname" placeholder="ななしさん"></div>
+          <div class="field"><label for="fName">名前<span id="nameCnt" class="cntr"></span></label><input id="fName" autocomplete="off"></div>
+          <div class="field"><label for="fText">ひとこと（なくてもOK）</label><input id="fText" maxlength="18" autocomplete="off"></div>
+          <label class="chk" for="fFan"><input type="checkbox" id="fFan"><span>既存のキャラを描いた<small>パックには入りません</small></span></label>
+          <p class="err" id="mkErr"></p>
+          <button class="btn primary" id="submit" style="width:100%">投稿する</button>
+          <p class="agree">投稿すると<a class="linkbtn" href="../terms/">利用規約</a>に同意したことになります。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

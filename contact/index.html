@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../img/icon.png">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
+<title>お問い合わせ｜ドットパック</title>
+<meta name="description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:title" content="ドットパック">
+<meta property="og:description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:image" content="https://kodras.jp/dotpack/img/apple-touch-icon.png">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preload" href="../fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../css/style.css">
+<script type="module" src="../js/contact.js"></script>
+</head>
+<body data-page="contact">
+<div class="wrap">
+<script src="../js/layout.js"></script>
+  <section id="tab-contact" class="terms">
+    <h2>お問い合わせ</h2>
+    <p class="upd">受け付けているのは次の3つです。作品についてのご依頼は、カードの右上にある作品番号を入力してください。</p>
+    <form id="cForm" novalidate>
+      <fieldset class="ctype">
+        <legend>ご依頼の種類</legend>
+        <label><input type="radio" name="ctype" id="ct-del" value="del" checked> 作品の削除</label>
+        <label><input type="radio" name="ctype" id="ct-hide" value="hide"> 作者名の非表示</label>
+        <label><input type="radio" name="ctype" id="ct-ad" value="ad"> 広告のご依頼</label>
+      </fieldset>
+      <div id="cWork">
+        <div class="field"><label for="cNo">作品番号</label><div class="noin"><span>No.</span><input id="cNo" maxlength="12" autocomplete="off" placeholder="0012-2"></div></div>
+        <div id="cCard" class="ccard"></div>
+        <div class="field"><label for="cReason">理由</label><select id="cReason"></select></div>
+      </div>
+      <div id="cAd" hidden>
+        <div class="field"><label for="cName">お名前・会社名</label><input id="cName" maxlength="60" autocomplete="organization"></div>
+        <div class="field"><label for="cMail">メールアドレス</label><input id="cMail" type="email" maxlength="120" autocomplete="email"></div>
+        <div class="field"><label for="cBody">ご依頼の内容（300文字まで）</label><textarea id="cBody" maxlength="300" rows="5"></textarea></div>
+      </div>
+      <p class="err" id="cErr"></p>
+      <button class="btn primary" type="submit">送信する</button>
+    </form>
+    <div id="cDone" hidden>
+      <p id="cDoneMsg"></p>
+      <p><button class="btn small" id="cAgain">続けて送る</button></p>
+    </div>
+    <p><button class="btn small" data-back>もどる</button></p>
+  </section>
+</div>
+</body>
+</html>

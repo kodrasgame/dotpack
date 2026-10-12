@@ -24,6 +24,11 @@ while ($listener.IsListening) {
     $rel = [Uri]::UnescapeDataString($ctx.Request.Url.AbsolutePath).TrimStart('/')
     if ($rel -eq "") { $rel = "index.html" }
     $full = [IO.Path]::GetFullPath((Join-Path $root $rel))
+    # make/ などのフォルダは、その中の index.html を返す（最後の / がなければ付けて開き直す）
+    if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $full -PathType Container)) {
+      if (-not $ctx.Request.Url.AbsolutePath.EndsWith('/')) { $res.Redirect($ctx.Request.Url.AbsolutePath + '/' + $ctx.Request.Url.Query); continue }
+      $full = Join-Path $full "index.html"
+    }
     if ($full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $full -PathType Leaf)) {
       $bytes = [IO.File]::ReadAllBytes($full)
       $ext = [IO.Path]::GetExtension($full).ToLower()

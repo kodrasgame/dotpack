@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="../img/icon.png">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
+<title>パック｜ドットパック</title>
+<meta name="description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:title" content="ドットパック">
+<meta property="og:description" content="毎月のテーマでドット絵カードを描いて投票。票で星が決まったパックを開けて図鑑を埋めよう。">
+<meta property="og:image" content="https://kodras.jp/dotpack/img/apple-touch-icon.png">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="preload" href="../fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../css/style.css">
+<script type="module" src="../js/pack.js"></script>
+</head>
+<body data-page="pack">
+<div class="wrap">
+<script src="../js/layout.js"></script>
+  <section id="tab-packs">
+    <p class="note" id="packCharge" hidden></p>
+    <div class="packs" id="packList"><p class="empty">読み込み中…</p></div>
+  </section>
+</div>
+<div id="ov" hidden>
+  <div class="ov-in">
+    <div id="ovPack"></div>
+    <p class="ov-hint" id="ovHint">タップして開ける</p>
+    <div id="ovCards" hidden></div>
+    <div class="ov-actions" id="ovActions" hidden>
+      <button class="btn" id="flipAll">ぜんぶめくる</button>
+      <button class="btn primary" id="again">もう1パック</button>
+      <button class="btn" id="closeOv">とじる</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

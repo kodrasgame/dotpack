@@ -104,7 +104,7 @@ async function renderReq() {
       }
     }
     acts += `<button class="btn" data-ra="done" data-id="${esc(r.id)}">${r.done ? '未対応にもどす' : '対応済みにする'}</button>`;
-    return `<div class="req ${r.done ? 'done' : ''}"><div class="req-h"><span class="badge ${r.type}">${TYPE_L[r.type]}</span><span>${fmtDate(r.at)}</span>${r.done ? '<span>対応済み</span>' : ''}</div>${body}<div class="acts">${acts}</div></div>`;
+    return `<div class="req ${r.done ? 'done' : ''}"><div class="req-h"><span class="badge ${esc(r.type)}">${esc(TYPE_L[r.type] || r.type)}</span><span>${fmtDate(r.at)}</span>${r.done ? '<span>対応済み</span>' : ''}</div>${body}<div class="acts">${acts}</div></div>`;
   }));
   $('#adm-req').innerHTML = `<div class="adm-bar"><label class="chk" style="margin:0"><input type="checkbox" id="onlyOpen" ${A.onlyOpen ? 'checked' : ''}><span>未対応だけ表示</span></label><button class="btn small" id="reloadReq">再読み込み</button></div><div class="reqs">${items.join('') || '<p class="empty">お問い合わせはありません。</p>'}</div>`;
 }
@@ -166,7 +166,7 @@ function renderClose() {
       <select id="gw">${[1, 2, 3].map(n => `<option value="${n}" ${A.gw === n ? 'selected' : ''}>1票を ${n} 票として数える</option>`).join('')}</select>
       <p class="hint">この設定はサイトには表示されません。</p></div>
     ${th && th.status === 'closing' ? '<p class="err">前回の締め切りが途中で止まっています。投稿と投票は止まっています。「集計して締め切る」でやり直してください。</p>' : ''}
-    ${th ? `<div><h3>受付中のテーマ</h3><dl class="kv"><dt>パック</dt><dd>${th.no}. ${esc(th.name)}</dd><dt>月</dt><dd>${esc(th.month)}</dd><dt>投稿番号</dt><dd>${th.seq || 0} まで</dd></dl></div>
+    ${th ? `<div><h3>受付中のテーマ</h3><dl class="kv"><dt>パック</dt><dd>${th.no}. ${esc(th.name)}</dd><dt>月</dt><dd>${esc(th.month)}</dd><dt>投稿番号</dt><dd>${esc(th.seq || 0)} まで</dd></dl></div>
     <p class="hint">締め切ると、票を集計して星と系統を決め、パックのJSONを書き出します。締め切ったあとは投稿と投票ができなくなります。</p>
     <div><button class="btn primary" id="doClose">${A.arm === 'close' ? 'もう一度押すと締め切ります' : '集計して締め切る'}</button></div>
     <p class="hint" id="closeLog"></p>` : '<p class="empty">受付中のテーマはありません。「テーマ」から次のテーマを始めてください。</p>'}

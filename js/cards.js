@@ -4,13 +4,13 @@ export const $ = s => document.querySelector(s);
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-/* 系統。en＝カード右上の印の文字、c＝印の地の色 */
+/* 系統。en＝カード左上の印の文字、c＝印の地の色 */
 export const ATTRS = [
   { k: 'cute', l: 'かわいい', en: 'CUTE', c: '#ef6aa0' },
-  { k: 'cool', l: 'かっこいい', en: 'COOL', c: '#3f7fdc' },
-  { k: 'strong', l: 'ストロング', en: 'STRONG', c: '#d9861c' },
+  { k: 'cool', l: 'クール', en: 'COOL', c: '#3f7fdc' },
+  { k: 'strong', l: 'パワフル', en: 'POWER', c: '#f2c12e', t: '#1c1c1c' },
   { k: 'weird', l: '怪しい', en: 'WEIRD', c: '#8a57c9' },
-  { k: 'passion', l: 'パッション', en: 'PASSION', c: '#e0453a' },
+  { k: 'passion', l: '情熱', en: 'PASSION', c: '#e0453a' },
 ];
 const ATTR_C = Object.fromEntries(ATTRS.map(a => [a.k, a]));
 export const ATTR_L = Object.fromEntries(ATTRS.map(a => [a.k, a.l]));
@@ -52,7 +52,15 @@ const LAY = { art: { x: 7, y: 7, scale: 3 }, stars: { r: 103, y: 15, gap: 1 }, n
 const METAL = { 1: '#1c1c1c', 2: '#9aa3b1', 3: '#d4a133' };
 const rainbow = t => `hsl(${Math.round(((t * 360 + 300) % 360) / 15) * 15} 85% 58%)`;
 const frameColor = (star, t) => star >= 4 ? rainbow(t) : METAL[star];
+/* 枠は星と色が同じならどのカードも同じ。1回だけ描いて使い回す（毎回描くと1枚ごとに数千回の点打ちになる） */
+const frames = new Map();
 function drawFrame(x, edge, star) {
+  const key = star + '|' + edge;
+  let f = frames.get(key);
+  if (!f) { f = document.createElement('canvas'); f.width = CW; f.height = CH; paintFrame(f.getContext('2d'), edge, star); frames.set(key, f) }
+  x.drawImage(f, 0, 0);
+}
+function paintFrame(x, edge, star) {
   const per = 2 * (CW + CH);
   x.fillStyle = '#ffffff'; x.fillRect(CB, CB, CW - 2 * CB, CH - 2 * CB);
   for (let py = 0; py < CH; py++) for (let px = 0; px < CW; px++) {
@@ -106,7 +114,7 @@ function drawMark(x, a) {
   for (let j = 0; j < MARK.h; j++) x.fillRect(right(j), MARK.y + 1 + j, 1, 1);
   x.fillStyle = a.c;
   for (let j = 0; j < MARK.h; j++) x.fillRect(1, MARK.y + 1 + j, right(j) - 1, 1);
-  let cx = MARK.tx; x.fillStyle = '#ffffff';
+  let cx = MARK.tx; x.fillStyle = a.t || '#ffffff';
   for (const ch of a.en) { const g = ABC[ch]; g.forEach((row, j) => { for (let i = 0; i < row.length; i++)if (row[i] === '#') x.fillRect(cx + i, MARK.y + 3 + j, 1, 1) }); cx += g[0].length + 1 }
 }
 
@@ -135,7 +143,7 @@ export function wrapText(str, maxW) {
 /* カードの背景：星ごとに1枚（締め切り後のカードだけ）。img/bg/star1〜4.png を枠の内側 100×144 ドットに引き伸ばして使う */
 const bgImgs = {};
 const loadBackgrounds = () => Promise.all([1, 2, 3, 4].map(n => new Promise(res => {
-  const im = new Image(); im.onload = () => { bgImgs[n] = im; res() }; im.onerror = res; im.src = `img/bg/star${n}.png`;
+  const im = new Image(); im.onload = () => { bgImgs[n] = im; res() }; im.onerror = res; im.src = new URL(`../img/bg/star${n}.png`, import.meta.url).href;
 })));
 export const loadCardFont = () => Promise.all([document.fonts.load(FONT, 'あ').catch(() => { }), loadBackgrounds()]);
 
@@ -163,7 +171,7 @@ export function cardImg(c, mode) {
   const url = cv.toDataURL(); if (c.id !== '_p') cardCache.set(key, url); return url;
 }
 export function cardHTML(c, mode = 'full', extra = '', scale = 2) {
-  const cls = mode === 'full' ? `s-${c.star}` : mode === 'sil' ? 'sil' : '';
+  const cls = mode === 'full' ? `s-${esc(c.star)}` : mode === 'sil' ? 'sil' : '';
   const label = mode === 'sil' ? '未所持のカード' : `${c.name}${mode === 'full' ? ` ${c.attr ? ATTR_L[c.attr] : ''} 星${c.star}` : ''}`;
   return `<div class="card ${cls}"${mode !== 'sil' && c.id && c.id !== '_p' ? ` data-cid="${esc(c.id)}"` : ''}><img class="cimg" src="${cardImg(c, mode)}" width="${CW * scale}" height="${CH * scale}" alt="${esc(label)}">${extra}</div>`;
 }
@@ -175,7 +183,8 @@ export function cardBackURL() {
   if (backURL) return backURL;
   const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const x = cv.getContext('2d');
   drawFrame(x, cssv('--fg'), 0);
-  for (let py = CB; py < CH - CB; py++) for (let px = CB; px < CW - CB; px++) { x.fillStyle = ((px - CB) / 6 | 0) % 2 ^ ((py - CB) / 6 | 0) % 2 ? cssv('--back1') : cssv('--back2'); x.fillRect(px, py, 1, 1) }
+  const b1 = cssv('--back1'), b2 = cssv('--back2');
+  for (let py = CB; py < CH - CB; py++) for (let px = CB; px < CW - CB; px++) { x.fillStyle = ((px - CB) / 6 | 0) % 2 ^ ((py - CB) / 6 | 0) % 2 ? b1 : b2; x.fillRect(px, py, 1, 1) }
   const S = 4, qx = (CW - 5 * S) / 2 | 0, qy = 56;
   x.fillStyle = '#ffffff'; x.fillRect(qx - 6, qy - 6, 5 * S + 12, 7 * S + 12);
   x.fillStyle = cssv('--fg'); x.fillRect(qx - 6, qy - 6, 5 * S + 12, 2); x.fillRect(qx - 6, qy + 7 * S + 4, 5 * S + 12, 2); x.fillRect(qx - 6, qy - 6, 2, 7 * S + 12); x.fillRect(qx + 5 * S + 4, qy - 6, 2, 7 * S + 12);
