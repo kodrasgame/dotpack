@@ -204,7 +204,7 @@ $('#adm-close').addEventListener('click', async e => {
     }
     await updateDoc(doc(db, 'themes', th.id), { status: 'closed', closedAt: serverTimestamp() });
     th.status = 'closed';
-    await exportPack(th);
+    await exportPack(th, cards);   // いま集計して保存したカードをそのまま書き出す（読み直さない）
     log('締め切りました。ダウンロードした2つのファイルを GitHub の packs フォルダに上げてください。');
     toast('締め切りました');
   } catch (err) {
@@ -219,8 +219,8 @@ function download(name, obj) {
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-async function exportPack(th) {
-  const cards = (await loadCards(th.id, true)).filter(c => !c.deleted && !c.hidden && !c.fan && c.star);
+async function exportPack(th, loaded) {
+  const cards = (loaded || await loadCards(th.id, true)).filter(c => !c.deleted && !c.hidden && !c.fan && c.star);
   const pack = {
     no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.palettes,
     cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', by: c.anon ? '' : c.by, anon: !!c.anon, p: c.p, px: c.px, star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
@@ -303,7 +303,7 @@ $('#adm-theme').addEventListener('click', async e => {
   if (openTheme()) { toast('受付中のテーマがあります'); return }
   const last = A.themes[A.themes.length - 1];
   try {
-    const ref = await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes: pals, seq: 0, createdAt: serverTimestamp() });
+    await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes: pals, seq: 0, createdAt: serverTimestamp() });
     await loadAll(); pals = null; toast('テーマを始めました'); A.tab = 'close'; render();
   } catch (err) { console.warn(err); toast('作れませんでした') }
 });

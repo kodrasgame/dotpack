@@ -1,7 +1,7 @@
 /* つくるページ（ドット絵のエディタと投稿） */
 import { db, doc, collection, runTransaction, serverTimestamp } from './fb.js';
 import { $, esc, N, NAME_MAX, TEXT_MAX, fmtNo, nameW, clipW, artURL, cardHTML } from './cards.js';
-import { S, store, boot, go, forgetCount, authorName, cardPath } from './core.js';
+import { S, store, boot, go, forgetCount, forgetFeed, authorName, cardPath } from './core.js';
 
 /* ---------- つくる（エディタ） ---------- */
 const EMPTY = '0'.repeat(N * N);
@@ -157,7 +157,7 @@ $('#submit').onclick = async () => {
     });
     ed.px = EMPTY; ed.hist = []; ed.base = null; $('#fName').value = ''; $('#fText').value = ''; $('#fFan').checked = false; saveDraft();
     /* 投稿したカードのページへ（そこから X にシェアできる）。投票ページは新着順にしておく */
-    forgetCount(); store.set('dp-sort', 'new');
+    forgetCount(); forgetFeed(); store.set('dp-sort', 'new');
     go(cardPath(posted) + '&new=1');
   } catch (e) {
     console.warn(e); err(e.message === 'closed' ? 'いまは投稿を受け付けていません' : '投稿できませんでした。時間をおいてもう一度お試しください');

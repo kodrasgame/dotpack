@@ -10,13 +10,15 @@ const REASONS = {
 };
 const cType = () => document.querySelector('input[name="ctype"]:checked').value;
 let cFound = null, cSeq = 0;
+const missed = new Set();   // 探して無かった番号（種類や理由を選び直すたびに読みに行かないように）
 async function findNo(v) {
   const n = parseNo(v); if (!n) return null;
   if (S.theme && n.tno === S.theme.no) {
     const hit = [...S.cards.values()].find(c => c.no === n.no);
     if (hit) return visible(hit) ? hit : null;
+    if (missed.has(n.no)) return null;
     try {
-      const snap = await getDocs(query(cardsCol(), where('no', '==', n.no), limit(1))); if (snap.empty) return null;
+      const snap = await getDocs(query(cardsCol(), where('no', '==', n.no), limit(1))); if (snap.empty) { missed.add(n.no); return null }
       const c = toCard(snap.docs[0]); S.cards.set(c.id, c); return visible(c) ? c : null;
     } catch (e) { return null }
   }

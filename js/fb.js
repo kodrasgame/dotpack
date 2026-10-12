@@ -11,10 +11,10 @@ if (LOCAL) try {
 export const MOCK = mockOn;
 const m = MOCK ? await import('./mockfb.js') : await import('./fbreal.js');
 export const {
-  app, auth, db, CONFIGURED,
+  auth, db, CONFIGURED,
   onAuthStateChanged, signInAnonymously, GoogleAuthProvider, linkWithPopup, signInWithPopup, signInWithCredential, signOut,
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit,
-  runTransaction, serverTimestamp, Timestamp, writeBatch, startAfter, increment, getCountFromServer
+  runTransaction, serverTimestamp, writeBatch, startAfter, increment, getCountFromServer
 } = m;
 
 if (MOCK) {

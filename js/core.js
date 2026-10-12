@@ -8,7 +8,6 @@ import { PACK_CHARGE_HOURS, PACK_MAX, PACK_PER_VOTE } from './config.js';
 
 /* サイトのいちばん上（dotpack/）の場所。ページのリンクやファイルの読み込みに使う */
 export const ROOT = new URL('../', import.meta.url).href;
-export const PAGE = document.body.dataset.page;
 export const go = path => { location.href = ROOT + path };
 
 /* ---------- 小さな道具 ---------- */
@@ -17,12 +16,13 @@ export const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch (e) { } },
 };
 /* ページを移っても少しのあいだ覚えておく控え（読み取り回数の節約）。タブを閉じると消える */
-const memo = {
+export const memo = {
   get(k, maxAge) { if (MOCK) return null; try { const v = JSON.parse(sessionStorage.getItem(k)); return v && Date.now() - v.at < maxAge ? v.v : null } catch (e) { return null } },
   set(k, v) { try { sessionStorage.setItem(k, JSON.stringify({ at: Date.now(), v })) } catch (e) { } },
   del(k) { try { sessionStorage.removeItem(k) } catch (e) { } },
 };
 export const forgetCount = () => memo.del('dp-count');
+export const forgetFeed = () => memo.del('dp-feed');   // 投票一覧の控え（vote.js）
 let toastT;
 export function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2200) }
 /* 次のページを開いたときに出すお知らせ */
@@ -224,7 +224,7 @@ let ownedTimer = null;
 export function saveOwned() {
   store.set('dp-owned', S.owned);
   if (!isGoogle()) return;
-  clearTimeout(ownedTimer); ownedTimer = setTimeout(pushUser, 2000);
+  clearTimeout(ownedTimer); ownedTimer = setTimeout(pushUser, 3000);   // 票と同じ3秒（つづけて投票しているあいだは1回にまとまる）
 }
 export function pushUser() {
   clearTimeout(ownedTimer); ownedTimer = null;
