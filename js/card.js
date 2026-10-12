@@ -6,6 +6,12 @@ import { shareCard, saveCardImage } from './share.js';
 
 const q = new URLSearchParams(location.search), n = parseNo(q.get('no') || ''), isNew = q.has('new');
 let card, loading = null;
+/* 検索エンジン向けの head の meta を書き換える（Google は JS を動かしてから読む） */
+function head(name, content) {
+  let m = document.querySelector(`meta[name="${name}"]`);
+  if (!m) { m = document.createElement('meta'); m.name = name; document.head.appendChild(m) }
+  m.content = content;
+}
 async function find() {
   if (!n) return null;
   if (S.theme && n.tno === S.theme.no) {
@@ -20,8 +26,10 @@ async function render() {
   if (!S.loaded) return;
   if (card === undefined) { try { card = await (loading || (loading = find())) } catch (e) { console.warn(e); card = null } }
   const c = card;
-  if (!c) { $('#cdBody').innerHTML = '<p class="empty">カードが見つかりません。</p>'; return }
+  if (!c) { $('#cdBody').innerHTML = '<p class="empty">カードが見つかりません。</p>'; head('robots', 'noindex'); return }
   document.title = `${c.name}｜ドットパック`;
+  head('description', `ドット絵カード「${c.name}」${c.anon || !c.by ? '' : `（作：${c.by}）`}。みんなで描いて集めるドットパックのカードです。`);
+  if (!document.querySelector('link[rel=canonical]')) document.head.insertAdjacentHTML('beforeend', `<link rel="canonical" href="${esc(ROOT + cardPath(c))}">`);
   const open = S.theme && c.tid === S.theme.id;
   const packName = open ? S.theme.name : (S.packIndex.find(p => p.tid === c.tid) || {}).name || '';
   const rows = [['パック', esc(packName)], ['作品番号', esc(fmtNo(c))], ['作者', c.anon || !c.by ? '―' : esc(c.by)]];
