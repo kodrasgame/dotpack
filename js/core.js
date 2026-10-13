@@ -3,7 +3,7 @@ import {
   auth, db, CONFIGURED, MOCK, onAuthStateChanged, signInAnonymously,
   doc, getDoc, getDocs, setDoc, collection, query, where, limit, serverTimestamp, writeBatch, increment, getCountFromServer
 } from './fb.js';
-import { $, esc, N, fmtNo, PALETTES, B64, clearCardCache, loadCardFont, logoInfo } from './cards.js';
+import { $, esc, N, fmtNo, PALETTES, LEGACY, B64, clearCardCache, loadCardFont, logoInfo } from './cards.js';
 import { PACK_CHARGE_HOURS, PACK_MAX, PACK_PER_VOTE } from './config.js';
 
 /* サイトのいちばん上（dotpack/）の場所。ページのリンクやファイルの読み込みに使う */
@@ -80,7 +80,7 @@ async function loadTheme() {
     S.theme = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
     memo.set('dp-theme', { theme: S.theme });
   }
-  if (S.theme) PALETTES[S.theme.id] = S.theme.palettes;
+  if (S.theme) { PALETTES[S.theme.id] = S.theme.palettes; if (S.theme.legacyPalettes) LEGACY[S.theme.id] = S.theme.legacyPalettes }
   cleanCache();
 }
 /* 締め切ったテーマの票の控えと、前の版のカードの控え（dp-cards-*）を端末から消す */

@@ -11,7 +11,9 @@
 import { encodeArt } from '../js/cards.js';
 /* 動作テスト.bat から開くページ。確認モード（?mock）用のテストデータを作って、トップページへ移る。
    本物の Firebase には何も書かない（このパソコンのブラウザの中だけ）。 */
-{
+if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+  document.getElementById('msg').textContent = 'このページは、このパソコンで動作テスト.bat から開いたときだけ使えます。';
+} else {
   const N = 32, CARDS = 24, PACK_CARDS = 30, VOTERS = 12;
   const ATTRS = ['cute', 'cool', 'strong', 'weird', 'passion'];
   const NAMES = ['まるいの', 'ころころ', 'ぽっちり', 'たまご', 'おだんご', 'しずく', 'まんまる', 'ぽんぽん', 'こだま', 'つぶつぶ', 'わっか', 'ほし', 'くるり', 'ぷにぷに', 'まめ'];

@@ -95,7 +95,8 @@ nav a[aria-current="page"]{background:var(--fg);color:var(--bg);clip-path:polygo
 .zoom{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
 .zoom .tool{min-width:34px;padding-inline:6px}
 .zoom output{min-width:2.4em;text-align:center}
-.pal{display:grid;grid-template-columns:repeat(9,32px);gap:6px}
+.sw-row{display:grid;grid-template-columns:repeat(8,32px);gap:6px}
+.sw-row+.sw-row{margin-top:10px}
 .colpick{display:inline-flex;align-items:center;gap:8px;margin-top:10px;color:var(--muted)}
 .colpick input{width:44px;height:32px;padding:0;border:2px solid var(--fg);background:none;cursor:pointer}
 .colpick input:disabled{opacity:.35;cursor:default}
@@ -252,7 +253,7 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 
 /* スマホ：カードは2列にして画面幅に合わせる（拡大率は整数でなくてよい） */
 @media (max-width:500px){
-  .pal{grid-template-columns:repeat(9,minmax(0,1fr))}
+  .sw-row{grid-template-columns:repeat(8,minmax(0,1fr))}
   .sw{width:auto;height:auto;aspect-ratio:1}
   .grid,#ovCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}
   .cw,.vcell,.adm-cell,.ccard{width:auto}

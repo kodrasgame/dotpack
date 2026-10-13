@@ -4,7 +4,7 @@ import {
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, serverTimestamp, writeBatch
 } from './fb.js';
 import { ADMIN_UID } from './config.js';
-import { $, esc, ATTRS, ATTR_L, N, fmtNo, parseNo, PALETTES, artURL, cardHTML, clearCardCache, loadCardFont, assignStars, encodeArt, logoInfo, LOGO_MAX, NCOL, hex6 } from './cards.js';
+import { $, esc, ATTRS, ATTR_L, N, fmtNo, parseNo, PALETTES, LEGACY, artURL, cardHTML, clearCardCache, loadCardFont, assignStars, encodeArt, logoInfo, LOGO_MAX, NCOL, hex6 } from './cards.js';
 
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600) }
@@ -39,7 +39,7 @@ function start() {
 async function loadAll() {
   const ts = await getDocs(query(collection(db, 'themes'), orderBy('no')));
   A.themes = ts.docs.map(d => ({ id: d.id, ...d.data() }));
-  for (const t of A.themes) PALETTES[t.id] = t.palettes;
+  for (const t of A.themes) { PALETTES[t.id] = t.palettes; if (t.legacyPalettes) LEGACY[t.id] = t.legacyPalettes }
   try { const c = await getDoc(doc(db, 'config', 'admin')); A.gw = c.exists() ? (c.data().gw || 3) : 3 } catch (e) { }
   await loadRequests();
 }
@@ -226,7 +226,7 @@ const artFields = c => c.art ? { art: c.art } : { px: c.px, p: c.p };
 async function exportPack(th, loaded) {
   const cards = (loaded || await loadCards(th.id, true)).filter(c => !c.deleted && !c.hidden && !c.fan && c.star);
   const pack = {
-    no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.palettes, logo: th.logo || null,
+    no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.legacyPalettes || th.palettes, logo: th.logo || null,
     cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', by: c.anon ? '' : c.by, anon: !!c.anon, ...artFields(c), star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
   };
   const cover = cards.slice().sort((a, b) => b.star - a.star || (b.score || 0) - (a.score || 0))[0];
@@ -235,7 +235,7 @@ async function exportPack(th, loaded) {
   if (mp) index = mp.index;
   else try { const r = await fetch('packs/index.json', { cache: 'no-cache' }); if (r.ok) index = await r.json() } catch (e) { }
   index = index.filter(p => p.no !== th.no);
-  index.push({ no: th.no, tid: th.id, name: th.name, month: th.month, count: cards.length, palettes: th.palettes, logo: th.logo || null, cover: cover ? artFields(cover) : null, ids: cards.map(c => c.id) });
+  index.push({ no: th.no, tid: th.id, name: th.name, month: th.month, count: cards.length, palettes: th.legacyPalettes || th.palettes, logo: th.logo || null, cover: cover ? artFields(cover) : null, ids: cards.map(c => c.id) });
   index.sort((a, b) => a.no - b.no);
   if (MOCK) { const m2 = mp || { index: [], packs: {} }; m2.index = index; m2.packs[th.no] = pack; localStorage.setItem('mock-packs', JSON.stringify(m2)) }
   download(String(th.no).padStart(4, '0') + '.json', pack);
@@ -255,12 +255,12 @@ const DEFAULT_PALS = [
   { name: 'よふかし', colors: '#0d0b1e #f2f0ff #1f1b4a #3a2f80 #6a4bc4 #ff4fa3 #ff8a3d #ffe066 #3dffb5 #34c6ff #2b6fff #c7a17a #7d5a44 #5c5f7a #a9acc9'.split(' ') },
 ];
 /* テーマの作成と、受付中のテーマの変更（名前・月・おすすめパレット・ロゴ） */
-let pals = null, logo = null, editKey = null;
+let pals = null, logo = null, bw = true, editKey = null;
 const PAL_MAX = 8;
 function renderTheme() {
   const th = openTheme(), last = A.themes[A.themes.length - 1];
   const edit = th && th.status === 'open' ? th : null, key = edit ? edit.id : th ? 'wait' : 'new';
-  if (editKey !== key) { pals = JSON.parse(JSON.stringify(edit ? edit.palettes || [] : last ? last.palettes : DEFAULT_PALS)); logo = edit ? edit.logo || null : null; editKey = key }
+  if (editKey !== key) { pals = JSON.parse(JSON.stringify(edit ? edit.palettes || [] : last ? last.palettes : DEFAULT_PALS)); logo = edit ? edit.logo || null : null; bw = edit ? edit.bw !== false : true; editKey = key }
   const nextNo = (last ? last.no : 0) + 1;
   const d = new Date(); const month = edit ? edit.month : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const lg = logo && logoInfo(logo);
@@ -273,10 +273,11 @@ function renderTheme() {
       ${lg ? `<p><img class="theme-logo" src="${lg.url}" width="${lg.w * 2}" height="${lg.h * 2}" alt="ロゴ"></p><p class="hint">${lg.w}×${lg.h}ドット</p>` : '<p class="hint">ロゴがないときは、テーマ名を文字で表示します。</p>'}
       <div class="pal-io"><label class="btn small">PNGを読み込む<input type="file" id="logoFile" accept="image/png" hidden></label>${lg ? '<button class="btn small" id="logoClear">ロゴを外す</button>' : ''}</div>
       <p class="hint">最大 ${LOGO_MAX.w}×${LOGO_MAX.h} ドット。色は透明・黒・白と、ほかに${NCOL}色まで。拡大して書き出したPNGでも、1ドットの大きさを自動で見つけます。</p></div>
+    <label class="chk" for="tBW"><input type="checkbox" id="tBW" ${bw ? 'checked' : ''}><span>黒・白を使えるようにする<small>描く画面で、パレットの上に黒と白が並びます</small></span></label>
     ${pals.map((p, i) => `<div class="paled"><h3><input type="text" class="pname" data-i="${i}" value="${esc(p.name)}" maxlength="12" aria-label="パレット${i + 1}の名前"> <button class="linkbtn" data-delpal="${i}">消す</button></h3>
       <div class="pcols">${p.colors.map((c, j) => `<input type="color" data-i="${i}" data-j="${j}" value="${esc(c)}" aria-label="パレット${i + 1}の${j + 1}色目">`).join('')}</div></div>`).join('')}
     <div class="pal-io">${pals.length < PAL_MAX ? '<button class="btn small" id="addPal">パレットを足す</button>' : ''}</div>
-    <p class="hint">おすすめパレットは、描く人が最初に使う色です（描く人はあとから自由に変えられます）。1つ${NCOL}色まで。黒・白・透明はいつでも使えます。</p>
+    <p class="hint">おすすめパレットは、描く人が最初に使う色です（描く人はあとから自由に変えられます）。1つ${NCOL}色まで。透明（消しゴム）はいつでも使えます。</p>
     <div><h3><label for="palText">パレットをまとめて貼り付け</label></h3>
       <textarea id="palText" rows="4" spellcheck="false" placeholder="1行に1パレット：名前 #1c1c28 #ffffff …（${NCOL}色まで）"></textarea>
       <div class="pal-io"><button class="btn small" id="palImport">貼った内容を読み込む</button><button class="btn small" id="palExport">今のパレットを書き出す</button></div></div>
@@ -285,6 +286,7 @@ function renderTheme() {
 }
 $('#adm-theme').addEventListener('input', e => {
   const i = +e.target.dataset.i;
+  if (e.target.id === 'tBW') { bw = e.target.checked; return }
   if (e.target.classList.contains('pname')) pals[i].name = e.target.value;
   if (e.target.type === 'color') pals[i].colors[+e.target.dataset.j] = e.target.value;
 });
@@ -354,11 +356,13 @@ $('#adm-theme').addEventListener('click', async e => {
   const palettes = pals.map(p => ({ name: (p.name || '').slice(0, 12), colors: p.colors.slice(0, NCOL).map(hex6) }));
   try {
     if (th && th.status === 'open') {
-      await updateDoc(doc(db, 'themes', th.id), { name, month, palettes, logo: logo || null });
+      /* パレットを変えるときは、前の形式のカードの色が変わらないように、最初のパレットを残しておく（新しい形式のカードは自分の色を持っているので変わらない） */
+      const keep = !th.legacyPalettes && JSON.stringify(palettes) !== JSON.stringify(th.palettes) ? { legacyPalettes: th.palettes } : {};
+      await updateDoc(doc(db, 'themes', th.id), { name, month, palettes, logo: logo || null, bw, ...keep });
       await loadAll(); editKey = null; toast('テーマを変更しました'); render(); return;
     }
     if (th) { toast('締め切りが途中のテーマがあります'); return }
-    await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes, logo: logo || null, seq: 0, createdAt: serverTimestamp() });
+    await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes, logo: logo || null, bw, seq: 0, createdAt: serverTimestamp() });
     await loadAll(); editKey = null; toast('テーマを始めました'); A.tab = 'close'; render();
   } catch (err) { console.warn(err); toast('保存できませんでした') }
 });

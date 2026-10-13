@@ -28,6 +28,8 @@ export function clipW(s, max) { let w = 0, out = ''; for (const ch of s) { const
 
 /* 各テーマのおすすめパレット（描くときの色の初期値）。tid -> [{name, colors[最大16]}]。前の形式のカードの色にも使う */
 export const PALETTES = {};
+/* テーマのパレットを変えたあとも、前の形式のカードが元の色のまま描けるように残しておくパレット。tid -> palettes */
+export const LEGACY = {};
 
 /* ---------- 絵の保存形式（art） ----------
    "1" ＋ 幅2文字 ＋ 高さ2文字 ＋ 色16個（1色4文字）＋ 絵。使う文字は B64 の64種類だけ（URLにもそのまま使える）。
@@ -75,7 +77,7 @@ function artOf(c) {
   const px = new Uint8Array(N * N);
   if (c && typeof c.px === 'string') {   // 前の形式
     for (let i = 0; i < N * N; i++) px[i] = parseInt(c.px[i], 16) || 0;
-    const pal = PALETTES[c.tid] && PALETTES[c.tid][c.p] ? PALETTES[c.tid][c.p].colors : [];
+    const src = LEGACY[c.tid] || PALETTES[c.tid], pal = src && src[c.p] ? src[c.p].colors : [];
     return { w: N, h: N, px, cols: [null, ...Array.from({ length: 15 }, (_, k) => pal[k] || '#888888')] };
   }
   return { w: N, h: N, px, cols: [null] };

@@ -124,8 +124,12 @@ function renderPals() {
 $('#pals').addEventListener('click', e => { const b = e.target.closest('[data-p]'); if (!b) return; ed.colors = presetColors(+b.dataset.p); renderPal(); drawEditor(); saveDraft(); renderPreview() });
 /* 色：黒・白（固定）＋自由な16色。16色の方は選んでから「色を変える」で変えられる */
 const pal = $('#pal');
+const useBW = () => S.theme.bw !== false;   // 黒・白を使うかはテーマごとに管理画面で決める
 function renderPal() {
-  pal.innerHTML = edCols().slice(1).map((c, k) => `<button class="sw" data-c="${k + 1}" style="background:${c}" aria-label="${k === 0 ? '黒' : k === 1 ? '白' : '色' + (k - 1)}" aria-pressed="${k + 1 === ed.color}"></button>`).join('');
+  if (!useBW() && ed.color < 3) ed.color = 3;
+  const sw = (c, v, label) => `<button class="sw" data-c="${v}" style="background:${c}" aria-label="${label}" aria-pressed="${v === ed.color}"></button>`;
+  pal.innerHTML = (useBW() ? `<div class="sw-row">${sw(BASE[0], 1, '黒')}${sw(BASE[1], 2, '白')}</div>` : '')
+    + `<div class="sw-row">${ed.colors.map((c, k) => sw(c, k + 3, '色' + (k + 1))).join('')}</div>`;
   const free = ed.color >= 3; $('#colPick').disabled = !free; if (free) $('#colPick').value = ed.colors[ed.color - 3];
 }
 pal.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; ed.color = +b.dataset.c; if (ed.tool === 'erase' || ed.tool === 'move') ed.tool = 'pen'; renderPal(); renderTools() });
