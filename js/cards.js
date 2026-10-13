@@ -253,8 +253,8 @@ export function cardBackURL() {
   return backURL = cv.toDataURL();
 }
 
-/* パックの袋：96×128ドット。上下はギザギザの留め口、まん中に表紙の絵とテーマ名 */
-export const PW = 96, PH = 128;
+/* パックの袋：96×160ドット（カードより縦長）。上下はギザギザの留め口、まん中に表紙の絵とテーマ名 */
+export const PW = 96, PH = 160;
 const packCache = new Map();
 export function packURL(p, cover) {
   const key = p.no + '|' + p.name + '|' + (cover ? (cover.art || cover.px || '').slice(0, 80) : '');
@@ -272,10 +272,10 @@ export function packURL(p, cover) {
       x.fillStyle = k >= 2 && px % 4 === 1 ? mid : fg; x.fillRect(px, py, 1, 1);
     }
   }
-  const ay = 18, ax = (PW - 64) / 2;
+  const ay = 40, ax = (PW - 64) / 2;
   if (cover) { x.fillStyle = '#ffffff'; x.fillRect(ax - 2, ay - 2, 68, 68); x.drawImage(artCanvas(cover), ax, ay, 64, 64) }
   tctx.font = FONT;
-  const lines = wrapText(p.name || '', PW - 12).slice(0, 2), ty = lines.length > 1 ? 88 : 94;
+  const lines = wrapText(p.name || '', PW - 12).slice(0, 2), ty = lines.length > 1 ? 116 : 122;
   lines.forEach((l, i) => { const w = Math.ceil(tctx.measureText(l).width); ptext(x, l, (PW - w) / 2 | 0, ty + i * 12, fg) });
   const url = cv.toDataURL(); packCache.set(key, url); return url;
 }
@@ -299,13 +299,22 @@ export function assignStars(cards, totals) {
   return cards;
 }
 
-/* パックを引く：1〜4枚目 ★1 55% / ★2 30% / ★3 12% / ★4 3%。5枚目は★3以上（★4 20%） */
+/* パックを引く：後ろの枚数ほど星が上がりやすい。5枚目は★3以上。
+   1パックあたりの★の割合は前と同じくらい（★1 43% / ★2 25% / ★3 25% / ★4 6.4%）。
+   RATES[何枚目] = [★1, ★2, ★3, ★4] の％ */
+export const RATES = [
+  [70, 25, 5, 0],
+  [60, 30, 9, 1],
+  [50, 33, 14, 3],
+  [35, 38, 21, 6],
+  [0, 0, 78, 22],
+];
 export function pull(cards) {
   const by = { 1: [], 2: [], 3: [], 4: [], 5: [] }; cards.forEach(c => by[c.star] && by[c.star].push(c));
-  const order = { 5: [5, 4, 3, 2, 1], 4: [4, 3, 2, 1], 3: [3, 2, 4, 1], 2: [2, 1, 3, 4], 1: [1, 2, 3, 4] };
+  const order = { 4: [4, 3, 2, 1], 3: [3, 2, 4, 1], 2: [2, 1, 3, 4], 1: [1, 2, 3, 4] };
   const out = [];
   for (let i = 0; i < 5; i++) {
-    const r = Math.random(); const want = i === 4 ? (r < .2 ? 4 : 3) : (r < .03 ? 4 : r < .15 ? 3 : r < .45 ? 2 : 1);
+    let r = Math.random() * 100, want = 1; for (; want < 4 && r >= RATES[i][want - 1]; want++) r -= RATES[i][want - 1];
     const k = (i === 4 ? [want, 4, 3, 2, 1] : order[want]).find(k => by[k].length); if (!k) break;   // 5枚目は★3がなければ★4を先に探す
     const pool = by[k]; out.push(pool[Math.floor(Math.random() * pool.length)]);
   }

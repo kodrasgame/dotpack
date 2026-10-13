@@ -20,6 +20,7 @@
 <link rel="preload" href="../fonts/BestTenDOT.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../css/style.css">
 <link rel="modulepreload" href="../js/cards.js">
+<link rel="modulepreload" href="../js/sparkle.js">
 <link rel="modulepreload" href="../js/core.js">
 <link rel="modulepreload" href="../js/fb.js">
 <link rel="modulepreload" href="../js/config.js">
@@ -39,15 +40,17 @@
 </div>
 <div id="ov" hidden>
   <div class="ov-in">
-    <div id="ovPack"></div>
-    <p class="ov-hint" id="ovHint">タップして開ける</p>
+    <p class="ov-count" id="ovCount"></p>
+    <div id="ovStage"></div>
+    <p class="ov-hint" id="ovHint"></p>
     <div id="ovCards" hidden></div>
     <div class="ov-actions" id="ovActions" hidden>
-      <button class="btn" id="flipAll">ぜんぶめくる</button>
       <button class="btn primary" id="again">もう1パック</button>
+      <button class="btn" id="again10" hidden>10連</button>
       <button class="btn" id="closeOv">とじる</button>
     </div>
   </div>
 </div>
+<div id="zoom" class="modal" hidden><div class="dt-in" id="zoomIn"></div></div>
 </body>
 </html>

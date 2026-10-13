@@ -135,7 +135,9 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 .pack{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .pack .pm,.pack .pc{color:var(--muted);line-height:1.2}
 .pack .btn{margin-top:4px}
-#ovPack{cursor:pointer;line-height:0}
+#ovPack{line-height:0}
+.pack .pimg{cursor:pointer}
+@media (hover:hover){.pack .pimg:hover{transform:translateY(-4px)}}
 #ovPack.shake{animation:shake .45s step-end}
 #ovPack.tear{animation:tear .45s steps(5) forwards}
 @keyframes shake{0%{transform:translateX(0)}15%{transform:translateX(-6px)}30%{transform:translateX(6px)}45%{transform:translateX(-6px)}60%{transform:translateX(6px)}75%{transform:translateX(-4px)}90%{transform:translateX(0)}}
@@ -155,22 +157,40 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 .ov-in{max-width:1180px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
 .ov-hint{margin:0;animation:blink 1s step-end infinite}
 @keyframes blink{50%{opacity:0}}
+/* 5枚の束：上の1枚が押すたびにどく。下のカードはぴったり重ねて見せない */
+#ov{--cs:2;--ps:3;touch-action:manipulation;cursor:pointer;-webkit-user-select:none;user-select:none}
+.ov-count{margin:0;color:var(--muted);min-height:1.5em}
+.stack{display:grid}
+.sc{grid-area:1/1;position:relative;line-height:0}
+.sc.out{animation:out .2s steps(4) forwards}
+@keyframes out{to{transform:translate(-70%,-8%) rotate(-10deg);opacity:0}}
+.sc .card,.sc .cimg{width:calc(var(--cs) * 110px);height:auto}
+#ovPack .pimg{width:calc(var(--ps) * 96px);height:auto}
+/* ★4：画面が白く光って、カードがはねて、虹色のふちとキラキラ */
+.flash{position:fixed;inset:0;background:#fff;z-index:25;pointer-events:none;animation:flash .5s steps(5) forwards}
+@keyframes flash{to{opacity:0}}
+.sc.rare .card{animation:pop .5s steps(5)}
+@keyframes pop{0%{transform:scale(.8)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+/* ★4の光：出た瞬間に輪が1回広がる（.burst）→ 弱い光が残る（.glow4）＋光の粒が上っていく（.pt）。--u＝1ドット */
+.sc.rare{--u:calc(var(--cs) * 1px)}
+.burst,.glow4{position:absolute;inset:0;pointer-events:none}
+.burst{animation:boom .6s steps(5) forwards}
+@keyframes boom{0%{box-shadow:0 0 0 0 #fff,0 0 0 0 #ffdc48}30%{box-shadow:0 0 0 calc(var(--u) * 3) #fff,0 0 0 calc(var(--u) * 7) #ffdc48cc}100%{box-shadow:0 0 0 calc(var(--u) * 10) #ffffff00,0 0 0 calc(var(--u) * 20) #ffdc4800}}
+.glow4{box-shadow:0 0 0 var(--u) #ffdc4899,0 0 0 calc(var(--u) * 3) #ffdc4833;animation:glowIn .6s steps(3) .4s both}
+@keyframes glowIn{from{opacity:0}}
+.pt{position:absolute;z-index:3;pointer-events:none;width:calc(var(--u) * 2);height:calc(var(--u) * 2);background:var(--c);box-shadow:0 0 0 var(--u) color-mix(in srgb,var(--c) 27%,transparent);opacity:0;animation:rise 1.8s steps(9) infinite}
+@keyframes rise{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(calc(var(--u) * -30));opacity:0}}
+.spk{position:absolute;z-index:3;pointer-events:none;transform:translate(-50%,-50%);background-repeat:no-repeat;image-rendering:pixelated}
+@keyframes spk{from{background-position-x:0}to{background-position-x:calc(var(--sheetw) * -1)}}
+/* まとめ：1パックなら5枚、10連なら1行に1パックずつ */
 #ovCards{display:grid;grid-template-columns:repeat(5,220px);gap:14px;width:100%;justify-content:center}
 @media (max-width:1180px){#ovCards{grid-template-columns:repeat(auto-fit,220px)}}
-.flip{position:relative;cursor:pointer;min-width:0;line-height:0}
-.flip .inner{display:grid}
-.flip .face{grid-area:1/1}
-.flip .front{visibility:hidden}
-.flip.open .inner{animation:flipx .36s steps(6)}
-.flip.open .front{visibility:visible;animation:showHalf .36s steps(1,end)}
-.flip.open .back{visibility:hidden;animation:hideHalf .36s steps(1,end)}
-@keyframes flipx{0%{transform:scaleX(1)}50%{transform:scaleX(0)}100%{transform:scaleX(1)}}
-@keyframes showHalf{0%{visibility:hidden}50%{visibility:visible}}
-@keyframes hideHalf{0%{visibility:visible}50%{visibility:hidden}}
-.flip.hint-top:not(.open) .back{outline:4px solid var(--s4);animation:blinkO .6s step-end infinite}
-@keyframes blinkO{50%{outline-color:transparent}}
-.flip .new{position:absolute;top:-8px;left:-6px;z-index:2;visibility:hidden}
-.flip.open .new{visibility:visible}
+#ovCards.many{grid-template-columns:repeat(5,110px);gap:12px 10px}
+.sum-c{position:relative;line-height:0;min-width:0;cursor:zoom-in}
+#zoom{z-index:22;cursor:pointer}
+.sc .new,.sum-c .new{position:absolute;top:-8px;left:-6px;z-index:2}
+.sc .new{font-size:calc(var(--cs) * 10px);line-height:1.2;padding:0 calc(var(--cs) * 3px);top:calc(var(--cs) * -4px);left:calc(var(--cs) * -3px)}
+.many .new{font-size:15px}
 .ov-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:4px 16px;z-index:30;white-space:nowrap}
@@ -258,17 +278,19 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
   .grid,#ovCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}
   .cw,.vcell,.adm-cell,.ccard{width:auto}
   .card{width:100%}
-  .card .cimg,.flip .cimg{width:100%;height:auto}
+  .card .cimg,.sum-c .cimg{width:100%;height:auto}
+  #ovCards.many{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px 6px}
   .cap,.cap-base{max-width:100%;font-size:15px}
   .vb{font-size:15px}
   .packs{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 12px}
   .pack .pimg{width:100%;height:auto;max-width:192px}
   .pack .pm,.pack .pc{font-size:15px}
-  #ovPack .pimg{width:min(288px,70vw);height:auto}
   .theme-meta{text-align:left}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .flip.open .inner,.flip.open .front,.flip.open .back,.ov-hint,.flip.hint-top .back{animation:none}
+  .ov-hint,.sc.out,.sc.rare .card,.flash,.burst,.glow4{animation:none}
+  .pt{display:none}
+  .spk{animation-play-state:paused!important}
   #ovPack.shake,#ovPack.tear{animation:none}
 }
