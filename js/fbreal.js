@@ -3,9 +3,14 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-lite.js';
-import { firebaseConfig } from './config.js';
+import { firebaseConfig, APP_CHECK_KEY } from './config.js';
 
 export const app = initializeApp(firebaseConfig);
+/* App Check：このサイトから来た操作だという証明を Firebase に付けて送る（ボット対策）。config.js にキーがあるときだけ */
+if (APP_CHECK_KEY) {
+  const { initializeAppCheck, ReCaptchaV3Provider } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(APP_CHECK_KEY), isTokenAutoRefreshEnabled: true });
+}
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const CONFIGURED = !String(firebaseConfig.apiKey).startsWith('YOUR_');

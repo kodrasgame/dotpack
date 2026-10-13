@@ -12,6 +12,10 @@ export const firebaseConfig = {
    admin.html に Google でログインすると画面に表示されます。firestore.rules にも同じ値を書きます。 */
 export const ADMIN_UID = 'b16Uw9nyrsYrMGApVt9cYWoQgqV2';
 
+/* App Check（ボット対策）の reCAPTCHA v3 の「サイトキー」。空のあいだは App Check を使わない。
+   reCAPTCHA の登録をしたら、ここにサイトキーを書く（公開されても問題ない値です）。 */
+export const APP_CHECK_KEY = '';
+
 /* パックを開けられる回数
    PACK_CHARGE_HOURS 時間ごとに1回ふえて、PACK_MAX 回までたまる。
    ほかの人の作品に投票すると、1枚につき PACK_PER_VOTE 回ふえる（こちらは上限なし）。 */

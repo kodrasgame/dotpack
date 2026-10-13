@@ -13,7 +13,7 @@ const enc=v=>{if(v&&v.__server)return{__ts:now()};if(v instanceof Timestamp)retu
 const dec=v=>{if(v&&v.__ts!==undefined)return new Timestamp(v.__ts);if(Array.isArray(v))return v.map(dec);if(v&&typeof v==='object'){const o={};for(const k in v)o[k]=dec(v[k]);return o}return v};
 const rid=()=>Math.random().toString(36).slice(2,12);
 export function collection(_d,...s){return{type:'col',path:s.join('/')}}
-export function doc(a,...s){if(a&&a.type==='col')return{type:'doc',path:a.path+'/'+(s[0]||rid())};return{type:'doc',path:s.join('/')}}
+export function doc(a,...s){const path=a&&a.type==='col'?a.path+'/'+(s[0]||rid()):s.join('/');return{type:'doc',path,id:path.split('/').pop()}}
 export function query(c,...cons){return{type:'q',path:c.path,cons}}
 export const where=(f,op,v)=>({k:'w',f,op,v}),orderBy=(f,dir)=>({k:'o',f,dir}),limit=n=>({k:'l',n}),startAfter=s=>({k:'s',s});
 const snapOf=(path,data)=>({id:path.split('/').pop(),exists:()=>data!==undefined,data:()=>data===undefined?undefined:dec(data),ref:{path}});

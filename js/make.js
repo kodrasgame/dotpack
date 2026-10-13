@@ -163,22 +163,25 @@ $('#submit').onclick = async () => {
   const err = m => { $('#mkErr').textContent = m };
   if (filled < 30) return err('もう少し描いてから投稿してください（30マス以上）');
   if (!name) return err('名前を入れてください');
+  if (Date.now() - store.get('dp-lastpost', 0) < 30000) return err('続けて投稿するときは、30秒ほどあけてください');
   err(''); posting = true; $('#submit').disabled = true;
   const by = authorName().slice(0, 12);
   try {
-    const tRef = doc(db, 'themes', S.theme.id), cRef = doc(collection(db, 'themes', S.theme.id, 'cards'));
+    const tRef = doc(db, 'themes', S.theme.id), cRef = doc(collection(db, 'themes', S.theme.id, 'cards')), lRef = doc(db, 'limits', S.user.uid);
     let posted = null;
     await runTransaction(db, async tx => {
       const t = await tx.get(tRef);
       if (!t.exists() || t.data().status !== 'open') throw new Error('closed');
       const seq = (t.data().seq || 0) + 1; posted = { no: seq, tno: t.data().no };
-      tx.update(tRef, { seq });
+      tx.update(tRef, { seq, last: cRef.id });   // 番号を進めるのは、その番号のカードを作るときだけ（ルールで確かめる）
+      tx.set(lRef, { post: serverTimestamp() }, { merge: true });   // 続けて投稿できる間隔の確認用
       tx.set(cRef, {
         uid: S.user.uid, tid: S.theme.id, tno: t.data().no, no: seq, by, name, text, art: edArt(),
         fan: $('#fFan').checked, base: ed.base ? ed.base.id : null, baseNo: ed.base ? fmtNo(ed.base) : null,
         hidden: false, deleted: false, anon: false, vc: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
       });
     });
+    store.set('dp-lastpost', Date.now());
     ed.px = EMPTY; ed.hist = []; ed.base = null; $('#fName').value = ''; $('#fText').value = ''; $('#fFan').checked = false; saveDraft();
     /* 投稿したカードのページへ（そこから X にシェアできる）。投票ページは新着順にしておく */
     forgetCount(); forgetFeed(); store.set('dp-sort', 'new');

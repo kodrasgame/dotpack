@@ -1,7 +1,7 @@
 /* お問い合わせページ。?t=ad で広告のご依頼、?no=0012-2 で作品番号を入れた状態で開く */
-import { db, collection, query, where, limit, getDocs, addDoc, serverTimestamp } from './fb.js';
+import { db, doc, collection, query, where, limit, getDocs, writeBatch, serverTimestamp } from './fb.js';
 import { $, fmtNo, parseNo, cardHTML } from './cards.js';
-import { S, boot, visible, capHTML, cardsCol, toCard, loadPack } from './core.js';
+import { S, store, boot, visible, capHTML, cardsCol, toCard, loadPack } from './core.js';
 
 /* ---------- お問い合わせ ---------- */
 const REASONS = {
@@ -56,7 +56,12 @@ $('#cForm').addEventListener('submit', async e => {
     if (t === 'hide' && c.uid && c.uid !== S.user.uid) return err('作者名の非表示は、その作品を投稿したアカウントからのみ依頼できます');
     Object.assign(req, { tid: c.tid, cid: c.id, no: fmtNo(c), reason: $('#cReason').value });
   }
-  try { await addDoc(collection(db, 'requests'), req) }
+  if (Date.now() - store.get('dp-lastreq', 0) < 60000) return err('続けて送るときは、1分ほどあけてください');
+  try {
+    /* 続けて送れる間隔の確認用に、limits にも送った時刻を入れる（ルールで確かめる） */
+    const b = writeBatch(db); b.set(doc(collection(db, 'requests')), req); b.set(doc(db, 'limits', S.user.uid), { req: serverTimestamp() }, { merge: true });
+    await b.commit(); store.set('dp-lastreq', Date.now());
+  }
   catch (e2) { return err(t === 'hide' ? '送信できませんでした。作者名の非表示は、その作品を投稿したアカウントからのみ依頼できます' : '送信できませんでした。時間をおいてもう一度お試しください') }
   lastCType = t;
   $('#cDoneMsg').textContent = t === 'ad' ? '送信しました。内容を確認して、メールでご連絡します。' : `送信しました（${req.no}）。運営者が確認して対応します。個別の返信はありません。`;
