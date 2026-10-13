@@ -3,7 +3,7 @@ import {
   auth, db, CONFIGURED, MOCK, onAuthStateChanged, signInAnonymously,
   doc, getDoc, getDocs, setDoc, collection, query, where, limit, serverTimestamp, writeBatch, increment, getCountFromServer
 } from './fb.js';
-import { $, esc, N, fmtNo, PALETTES, clearCardCache, loadCardFont } from './cards.js';
+import { $, esc, N, fmtNo, PALETTES, B64, clearCardCache, loadCardFont, logoInfo } from './cards.js';
 import { PACK_CHARGE_HOURS, PACK_MAX, PACK_PER_VOTE } from './config.js';
 
 /* サイトのいちばん上（dotpack/）の場所。ページのリンクやファイルの読み込みに使う */
@@ -51,9 +51,9 @@ export function capHTML(c) {
 export const cardPath = c => 'card/?no=' + fmtNo(c).slice(3);
 /* 「これを元に作る」：描きかけの下書きに元ネタだけ書き足して、つくるページへ */
 export function makeFrom(c) {
-  const base = { id: c.id, tid: c.tid, tno: c.tno, no: c.no, name: c.name, by: c.anon ? '―' : c.by, px: c.px, p: c.p };
+  const base = { id: c.id, tid: c.tid, tno: c.tno, no: c.no, name: c.name, by: c.anon ? '―' : c.by, art: c.art || null, px: c.px || null, p: c.p ?? null };
   const d = store.get('dp-draft', null);
-  store.set('dp-draft', d && d.t === S.theme.id ? { ...d, base } : { t: S.theme.id, px: '0'.repeat(N * N), p: 0, base, name: '', text: '' });
+  store.set('dp-draft', d && d.t === S.theme.id ? { ...d, base } : { t: S.theme.id, v: 2, px: B64[0].repeat(N * N), colors: null, base, name: '', text: '' });
   toastNext('元にする作品を設定しました'); go('make/');
 }
 
@@ -63,7 +63,8 @@ export function renderHeader() {
   const th = S.theme;
   if (!th) { $('#thLbl').textContent = ''; $('#thName').textContent = 'ドットパック'; $('#thMeta').textContent = S.loaded ? '次のテーマを準備中です' : ''; return }
   $('#thLbl').textContent = monthLabel(th.month) + 'のテーマ';
-  $('#thName').textContent = th.name;
+  const lg = th.logo && logoInfo(th.logo);   // テーマのロゴがあれば名前のかわりに出す
+  $('#thName').innerHTML = lg ? `<img class="theme-logo" src="${lg.url}" width="${lg.w * 2}" height="${lg.h * 2}" alt="${esc(th.name)}">` : esc(th.name);
   const [y, m] = th.month.split('-').map(Number);
   const left = Math.max(0, Math.ceil((new Date(y, m, 1) - new Date()) / 864e5));
   $('#thMeta').innerHTML = `投稿・投票 受付中<br>のこり <b>${left}</b> 日 ・ <b>${esc(S.count ?? '…')}</b> 枚`;

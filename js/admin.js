@@ -4,7 +4,7 @@ import {
   doc, getDoc, getDocs, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, serverTimestamp, writeBatch
 } from './fb.js';
 import { ADMIN_UID } from './config.js';
-import { $, esc, ATTRS, ATTR_L, N, fmtNo, parseNo, PALETTES, artURL, cardHTML, clearCardCache, loadCardFont, assignStars } from './cards.js';
+import { $, esc, ATTRS, ATTR_L, N, fmtNo, parseNo, PALETTES, artURL, cardHTML, clearCardCache, loadCardFont, assignStars, encodeArt, logoInfo, LOGO_MAX, NCOL, hex6 } from './cards.js';
 
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600) }
@@ -50,8 +50,9 @@ async function loadRequests() {
 }
 /* 削除・非表示・作者名非表示にした作品は、公開のカードから中身を消して、元の内容を vault（管理者だけが読める）に移す。
    管理画面では元の内容を重ねて表示する。 */
-const SECRET = ['uid', 'by', 'name', 'text', 'px'];
+const SECRET = ['uid', 'by', 'name', 'text', 'art', 'px'];   // px は前の形式のカードだけ
 const EMPTY = '0'.repeat(N * N);
+const secretOf = c => Object.fromEntries(SECRET.filter(k => k !== 'px' || c.px).map(k => [k, c[k] ?? '']));
 const vaultRef = c => doc(db, 'vault', c.tid + '_' + c.id);
 async function loadCards(tid, force) {
   if (!force && A.cardsByTheme.has(tid)) return A.cardsByTheme.get(tid);
@@ -73,8 +74,9 @@ async function reqCard(r) {
 /* c はいつも元の内容を持っている（vault を重ねてある） */
 async function patchCard(c, data) {
   const next = { ...c, ...data }, gone = next.deleted || next.hidden;
-  if (gone || next.anon) await setDoc(vaultRef(c), { tid: c.tid, cid: c.id, data: Object.fromEntries(SECRET.map(k => [k, c[k] ?? ''])) });
-  const pub = gone ? { uid: '', by: '', name: '', text: '', px: EMPTY } : next.anon ? { uid: '', by: '', name: c.name, text: c.text || '', px: c.px } : Object.fromEntries(SECRET.map(k => [k, c[k] ?? '']));
+  if (gone || next.anon) await setDoc(vaultRef(c), { tid: c.tid, cid: c.id, data: secretOf(c) });
+  const old = c.px ? (gone ? { px: EMPTY } : { px: c.px }) : {};
+  const pub = gone ? { uid: '', by: '', name: '', text: '', art: '', ...old } : next.anon ? { uid: '', by: '', name: c.name, text: c.text || '', art: c.art || '', ...old } : secretOf(c);
   await updateDoc(doc(db, 'themes', c.tid, 'cards', c.id), { ...data, ...pub, updatedAt: serverTimestamp() });
   Object.assign(c, data);
 }
@@ -219,11 +221,13 @@ function download(name, obj) {
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+/* 絵のフィールド：新しい形式は art、前の形式は px と p */
+const artFields = c => c.art ? { art: c.art } : { px: c.px, p: c.p };
 async function exportPack(th, loaded) {
   const cards = (loaded || await loadCards(th.id, true)).filter(c => !c.deleted && !c.hidden && !c.fan && c.star);
   const pack = {
-    no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.palettes,
-    cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', by: c.anon ? '' : c.by, anon: !!c.anon, p: c.p, px: c.px, star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
+    no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.palettes, logo: th.logo || null,
+    cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', by: c.anon ? '' : c.by, anon: !!c.anon, ...artFields(c), star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
   };
   const cover = cards.slice().sort((a, b) => b.star - a.star || (b.score || 0) - (a.score || 0))[0];
   let index = [];
@@ -231,7 +235,7 @@ async function exportPack(th, loaded) {
   if (mp) index = mp.index;
   else try { const r = await fetch('packs/index.json', { cache: 'no-cache' }); if (r.ok) index = await r.json() } catch (e) { }
   index = index.filter(p => p.no !== th.no);
-  index.push({ no: th.no, tid: th.id, name: th.name, month: th.month, count: cards.length, palettes: th.palettes, cover: cover ? { px: cover.px, p: cover.p } : null, ids: cards.map(c => c.id) });
+  index.push({ no: th.no, tid: th.id, name: th.name, month: th.month, count: cards.length, palettes: th.palettes, logo: th.logo || null, cover: cover ? artFields(cover) : null, ids: cards.map(c => c.id) });
   index.sort((a, b) => a.no - b.no);
   if (MOCK) { const m2 = mp || { index: [], packs: {} }; m2.index = index; m2.packs[th.no] = pack; localStorage.setItem('mock-packs', JSON.stringify(m2)) }
   download(String(th.no).padStart(4, '0') + '.json', pack);
@@ -250,23 +254,33 @@ const DEFAULT_PALS = [
   { name: 'ふんわり', colors: '#3b2f3a #fffaf3 #ffb5c2 #ffd6a5 #fdffb6 #caffbf #9bf6ff #a0c4ff #bdb2ff #ffc6ff #f5d7c3 #e8b98a #c08b6a #8c6a5d #b8b8c8'.split(' ') },
   { name: 'よふかし', colors: '#0d0b1e #f2f0ff #1f1b4a #3a2f80 #6a4bc4 #ff4fa3 #ff8a3d #ffe066 #3dffb5 #34c6ff #2b6fff #c7a17a #7d5a44 #5c5f7a #a9acc9'.split(' ') },
 ];
-let pals = null;
+/* テーマの作成と、受付中のテーマの変更（名前・月・おすすめパレット・ロゴ） */
+let pals = null, logo = null, editKey = null;
+const PAL_MAX = 8;
 function renderTheme() {
   const th = openTheme(), last = A.themes[A.themes.length - 1];
-  if (!pals) pals = JSON.parse(JSON.stringify(last ? last.palettes : DEFAULT_PALS));
+  const edit = th && th.status === 'open' ? th : null, key = edit ? edit.id : th ? 'wait' : 'new';
+  if (editKey !== key) { pals = JSON.parse(JSON.stringify(edit ? edit.palettes || [] : last ? last.palettes : DEFAULT_PALS)); logo = edit ? edit.logo || null : null; editKey = key }
   const nextNo = (last ? last.no : 0) + 1;
-  const d = new Date(); const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const d = new Date(); const month = edit ? edit.month : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const lg = logo && logoInfo(logo);
   $('#adm-theme').innerHTML = `<div class="adm-form">
-    ${th ? `<p class="hint">いまは「${esc(th.name)}」を受付中です。新しいテーマは、締め切ってから始められます。</p>` : ''}
-    <div><h3><label for="tName">次のテーマ名（パック番号 ${nextNo}）</label></h3><input type="text" id="tName" maxlength="24" placeholder="天空の使者パック"></div>
-    <div><h3><label for="tMonth">月</label></h3><input type="month" id="tMonth" value="${month}"></div>
-    ${pals.map((p, i) => `<div class="paled"><h3><input type="text" class="pname" data-i="${i}" value="${esc(p.name)}" maxlength="12" aria-label="パレット${i + 1}の名前"></h3>
-      <div class="pcols">${p.colors.map((c, j) => `<input type="color" data-i="${i}" data-j="${j}" value="${c}" aria-label="パレット${i + 1}の${j + 1}色目">`).join('')}</div></div>`).join('')}
-    <p class="hint">各パレットは15色です（透明は自動で付きます）。1色目は一番暗い色にしておくと描きやすくなります。</p>
+    ${th && !edit ? `<p class="hint">「${esc(th.name)}」の締め切りが途中です。「締め切り」タブで締め切ってから、次のテーマを始めてください。</p>` : ''}
+    ${edit ? `<p class="hint">受付中のテーマ（パック番号 ${edit.no}）を変更します。公開ページには10分ほどで反映されます。</p>` : ''}
+    <div><h3><label for="tName">${edit ? 'テーマ名' : `次のテーマ名（パック番号 ${nextNo}）`}</label></h3><input type="text" id="tName" maxlength="24" placeholder="天空の使者パック" value="${edit ? esc(edit.name) : ''}"></div>
+    <div><h3><label for="tMonth">月</label></h3><input type="month" id="tMonth" value="${esc(month)}"></div>
+    <div><h3>ロゴ（なくてもOK）</h3>
+      ${lg ? `<p><img class="theme-logo" src="${lg.url}" width="${lg.w * 2}" height="${lg.h * 2}" alt="ロゴ"></p><p class="hint">${lg.w}×${lg.h}ドット</p>` : '<p class="hint">ロゴがないときは、テーマ名を文字で表示します。</p>'}
+      <div class="pal-io"><label class="btn small">PNGを読み込む<input type="file" id="logoFile" accept="image/png" hidden></label>${lg ? '<button class="btn small" id="logoClear">ロゴを外す</button>' : ''}</div>
+      <p class="hint">最大 ${LOGO_MAX.w}×${LOGO_MAX.h} ドット。色は透明・黒・白と、ほかに${NCOL}色まで。拡大して書き出したPNGでも、1ドットの大きさを自動で見つけます。</p></div>
+    ${pals.map((p, i) => `<div class="paled"><h3><input type="text" class="pname" data-i="${i}" value="${esc(p.name)}" maxlength="12" aria-label="パレット${i + 1}の名前"> <button class="linkbtn" data-delpal="${i}">消す</button></h3>
+      <div class="pcols">${p.colors.map((c, j) => `<input type="color" data-i="${i}" data-j="${j}" value="${esc(c)}" aria-label="パレット${i + 1}の${j + 1}色目">`).join('')}</div></div>`).join('')}
+    <div class="pal-io">${pals.length < PAL_MAX ? '<button class="btn small" id="addPal">パレットを足す</button>' : ''}</div>
+    <p class="hint">おすすめパレットは、描く人が最初に使う色です（描く人はあとから自由に変えられます）。1つ${NCOL}色まで。黒・白・透明はいつでも使えます。</p>
     <div><h3><label for="palText">パレットをまとめて貼り付け</label></h3>
-      <textarea id="palText" rows="4" spellcheck="false" placeholder="1行に1パレット：名前 #1c1c28 #ffffff …（15色）"></textarea>
+      <textarea id="palText" rows="4" spellcheck="false" placeholder="1行に1パレット：名前 #1c1c28 #ffffff …（${NCOL}色まで）"></textarea>
       <div class="pal-io"><button class="btn small" id="palImport">貼った内容を読み込む</button><button class="btn small" id="palExport">今のパレットを書き出す</button></div></div>
-    <div><button class="btn primary" id="makeTheme" ${th ? 'disabled' : ''}>このテーマを始める</button></div>
+    <div><button class="btn primary" id="makeTheme" ${th && !edit ? 'disabled' : ''}>${edit ? '変更を保存する' : 'このテーマを始める'}</button></div>
   </div>`;
 }
 $('#adm-theme').addEventListener('input', e => {
@@ -274,38 +288,79 @@ $('#adm-theme').addEventListener('input', e => {
   if (e.target.classList.contains('pname')) pals[i].name = e.target.value;
   if (e.target.type === 'color') pals[i].colors[+e.target.dataset.j] = e.target.value;
 });
-/* パレットの貼り付け：1行に1パレット「名前 #xxxxxx …15色」。名前は省略できる。3行まで */
+/* パレットの貼り付け：1行に1パレット「名前 #xxxxxx …」。名前は省略できる */
 const palToText = () => pals.map(p => `${p.name} ${p.colors.join(' ')}`).join('\n');
 function textToPals(text) {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean), out = [];
   for (const l of lines) {
     const cols = (l.match(/#?[0-9a-f]{6}\b/gi) || []).map(c => '#' + c.replace('#', '').toLowerCase());
     if (!cols.length) continue;
-    if (cols.length !== 15) return { err: `${out.length + 1}行目の色が${cols.length}色です（15色にしてください）` };
+    if (cols.length > NCOL) return { err: `${out.length + 1}行目の色が${cols.length}色です（${NCOL}色までにしてください）` };
     const name = l.slice(0, l.search(/#?[0-9a-f]{6}\b/i)).replace(/[:：\s]+$/, '').trim();
     out.push({ name: (name || `パレット${out.length + 1}`).slice(0, 12), colors: cols });
   }
   if (!out.length) return { err: '色が見つかりませんでした' };
-  if (out.length > 3) return { err: 'パレットは3つまでです' };
+  if (out.length > PAL_MAX) return { err: `パレットは${PAL_MAX}つまでです` };
   return { pals: out };
 }
 function rerenderTheme() { const n = $('#tName').value, m = $('#tMonth').value; renderTheme(); $('#tName').value = n; $('#tMonth').value = m }
+/* ロゴのPNG → art。1ドットの大きさ（拡大率）を見つけて、透明・黒・白＋16色に分ける */
+async function pngToLogo(file) {
+  const im = new Image(); im.src = URL.createObjectURL(file); await im.decode();
+  const W = im.naturalWidth, H = im.naturalHeight, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const x = cv.getContext('2d'); x.drawImage(im, 0, 0); URL.revokeObjectURL(im.src);
+  const d = x.getImageData(0, 0, W, H).data;
+  const key = (px, py) => { const o = (py * W + px) * 4; return d[o + 3] < 128 ? 't' : (d[o] << 16 | d[o + 1] << 8 | d[o + 2]).toString(16).padStart(6, '0') };
+  let k = 1;
+  for (let s = Math.min(W, H); s > 1; s--) {
+    if (W % s || H % s) continue;
+    let ok = true;
+    for (let py = 0; py < H && ok; py++) for (let px = 0; px < W; px++) if (key(px, py) !== key(px - px % s, py - py % s)) { ok = false; break }
+    if (ok) { k = s; break }
+  }
+  const w = W / k, h = H / k;
+  if (w > LOGO_MAX.w || h > LOGO_MAX.h) return { err: `大きすぎます（${w}×${h}ドット）。${LOGO_MAX.w}×${LOGO_MAX.h}ドットまでです` };
+  const colors = [], vals = [];
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+    const c = key(px * k, py * k);
+    if (c === 't') { vals.push(0); continue }
+    if (c === '000000') { vals.push(1); continue }
+    if (c === 'ffffff') { vals.push(2); continue }
+    let j = colors.indexOf('#' + c); if (j < 0) { colors.push('#' + c); j = colors.length - 1 }
+    vals.push(3 + j);
+  }
+  if (colors.length > NCOL) return { err: `色が多すぎます（黒・白のほかに${colors.length}色）。${NCOL}色までです` };
+  return { art: encodeArt(vals, w, h, colors) };
+}
+$('#adm-theme').addEventListener('change', async e => {
+  if (e.target.id !== 'logoFile' || !e.target.files[0]) return;
+  try { const r = await pngToLogo(e.target.files[0]); if (r.err) { toast(r.err); return } logo = r.art; rerenderTheme(); toast('ロゴを読み込みました（保存はまだです）') }
+  catch (err) { console.warn(err); toast('画像を読み込めませんでした') }
+});
 $('#adm-theme').addEventListener('click', async e => {
   if (e.target.id === 'palExport') { $('#palText').value = palToText(); $('#palText').select(); return }
   if (e.target.id === 'palImport') {
     const r = textToPals($('#palText').value);
     if (r.err) { toast(r.err); return }
-    r.pals.forEach((p, i) => { pals[i] = p }); rerenderTheme(); toast(`${r.pals.length}つのパレットを読み込みました`); return;
+    pals = r.pals; rerenderTheme(); toast(`${r.pals.length}つのパレットを読み込みました`); return;
   }
+  if (e.target.id === 'addPal') { pals.push({ name: `パレット${pals.length + 1}`, colors: Array(NCOL).fill('#888888') }); rerenderTheme(); return }
+  if (e.target.dataset.delpal !== undefined) { pals.splice(+e.target.dataset.delpal, 1); rerenderTheme(); return }
+  if (e.target.id === 'logoClear') { logo = null; rerenderTheme(); return }
   if (e.target.id !== 'makeTheme') return;
   const name = $('#tName').value.trim(), month = $('#tMonth').value;
   if (!name) { toast('テーマ名を入れてください'); return }
-  if (openTheme()) { toast('受付中のテーマがあります'); return }
-  const last = A.themes[A.themes.length - 1];
+  const th = openTheme(), last = A.themes[A.themes.length - 1];
+  const palettes = pals.map(p => ({ name: (p.name || '').slice(0, 12), colors: p.colors.slice(0, NCOL).map(hex6) }));
   try {
-    await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes: pals, seq: 0, createdAt: serverTimestamp() });
-    await loadAll(); pals = null; toast('テーマを始めました'); A.tab = 'close'; render();
-  } catch (err) { console.warn(err); toast('作れませんでした') }
+    if (th && th.status === 'open') {
+      await updateDoc(doc(db, 'themes', th.id), { name, month, palettes, logo: logo || null });
+      await loadAll(); editKey = null; toast('テーマを変更しました'); render(); return;
+    }
+    if (th) { toast('締め切りが途中のテーマがあります'); return }
+    await addDoc(collection(db, 'themes'), { no: (last ? last.no : 0) + 1, name, month, status: 'open', palettes, logo: logo || null, seq: 0, createdAt: serverTimestamp() });
+    await loadAll(); editKey = null; toast('テーマを始めました'); A.tab = 'close'; render();
+  } catch (err) { console.warn(err); toast('保存できませんでした') }
 });
 
 start();

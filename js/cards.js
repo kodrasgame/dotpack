@@ -26,23 +26,74 @@ export function parseNo(v) { const m = String(v).match(/(\d+)\D+(\d+)/); return 
 export const nameW = s => [...s].reduce((w, ch) => w + (/[ -~｡-ﾟ]/.test(ch) ? 1 : 2), 0);
 export function clipW(s, max) { let w = 0, out = ''; for (const ch of s) { const c = nameW(ch); if (w + c > max) break; w += c; out += ch } return out }
 
-/* 各テーマ（パック）のパレット。tid -> [{name, colors[15]}] */
+/* 各テーマのおすすめパレット（描くときの色の初期値）。tid -> [{name, colors[最大16]}]。前の形式のカードの色にも使う */
 export const PALETTES = {};
 
-/* ---------- 絵 ---------- */
-export function artCanvas(px, colors, sil) {
-  const c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d');
+/* ---------- 絵の保存形式（art） ----------
+   "1" ＋ 幅2文字 ＋ 高さ2文字 ＋ 色16個（1色4文字）＋ 絵。使う文字は B64 の64種類だけ（URLにもそのまま使える）。
+   絵の1文字：0＝透明、1＝黒、2＝白、3〜18＝色16個、19〜63＝「次の1文字の色を3〜47回くり返す」。左上から右下へ1本の流れで読む。
+   カードの絵は 32×32。テーマのロゴも同じ形式（LOGO_MAX まで）。
+   前の形式（px：16進1024文字 ＋ p：テーマのパレット番号）のカードもそのまま描ける。 */
+export const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const B64I = Object.fromEntries([...B64].map((c, i) => [c, i]));
+export const BASE = ['#000000', '#ffffff'];    // 黒・白（どのカードでも使える固定の色）
+export const NCOL = 16;                         // 自由に選べる色の数
+export const LOGO_MAX = { w: 160, h: 32 };      // テーマのロゴの最大の大きさ（ドット）
+const NV = 3 + NCOL, MAXRUN = 64 - NV + 2;      // 色の値は 0〜18、くり返しは3〜47回
+const n2 = n => B64[n >> 6 & 63] + B64[n & 63], d2 = s => B64I[s[0]] * 64 + B64I[s[1]];
+export const hex6 = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c.toLowerCase() : '#888888';
+/* vals：0〜18 の数の並び（w×h）。colors：16色 */
+export function encodeArt(vals, w, h, colors) {
+  let s = '1' + n2(w) + n2(h);
+  for (let k = 0; k < NCOL; k++) { const v = parseInt(hex6(colors[k]).slice(1), 16); s += B64[v >> 18 & 63] + B64[v >> 12 & 63] + B64[v >> 6 & 63] + B64[v & 63] }
+  for (let i = 0; i < vals.length;) {
+    let j = i; while (j < vals.length && vals[j] === vals[i] && j - i < MAXRUN) j++;
+    if (j - i >= 3) { s += B64[NV + j - i - 3] + B64[vals[i]]; i = j } else s += B64[vals[i++]];
+  }
+  return s;
+}
+const artMemo = new Map();
+/* 読めない文字列なら null */
+export function decodeArt(s) {
+  if (typeof s !== 'string' || s[0] !== '1' || s.length < 5 + NCOL * 4) return null;
+  if (artMemo.has(s)) return artMemo.get(s);
+  const w = d2(s.slice(1, 3)), h = d2(s.slice(3, 5)); if (!(w > 0 && h > 0 && w * h <= 16384)) return null;
+  const colors = [];
+  for (let k = 0; k < NCOL; k++) { let v = 0; for (let q = 0; q < 4; q++) { const d = B64I[s[5 + k * 4 + q]]; if (d === undefined) return null; v = v * 64 + d } colors.push('#' + v.toString(16).padStart(6, '0')) }
+  const px = new Uint8Array(w * h); let i = 0;
+  for (let k = 5 + NCOL * 4; k < s.length && i < w * h; k++) {
+    const v = B64I[s[k]]; if (v === undefined) return null;
+    if (v >= NV) { const c = B64I[s[++k]]; if (c === undefined || c >= NV) return null; px.fill(c, i, Math.min(w * h, i + v - NV + 3)); i += v - NV + 3 }
+    else px[i++] = v;
+  }
+  const r = { w, h, colors, px }; if (artMemo.size > 2000) artMemo.clear(); artMemo.set(s, r); return r;
+}
+/* カード（または表紙）の絵を { w, h, px（値の並び）, cols（値→色） } にする */
+function artOf(c) {
+  const a = c && c.art && decodeArt(c.art);
+  if (a) return { w: a.w, h: a.h, px: a.px, cols: [null, ...BASE, ...a.colors] };
+  const px = new Uint8Array(N * N);
+  if (c && typeof c.px === 'string') {   // 前の形式
+    for (let i = 0; i < N * N; i++) px[i] = parseInt(c.px[i], 16) || 0;
+    const pal = PALETTES[c.tid] && PALETTES[c.tid][c.p] ? PALETTES[c.tid][c.p].colors : [];
+    return { w: N, h: N, px, cols: [null, ...Array.from({ length: 15 }, (_, k) => pal[k] || '#888888')] };
+  }
+  return { w: N, h: N, px, cols: [null] };
+}
+export function artCanvas(c, sil) {
+  const a = artOf(c), cv = document.createElement('canvas'); cv.width = a.w; cv.height = a.h; const x = cv.getContext('2d');
   const silCol = cssv('--sil') || '#cfcfcf';
-  for (let i = 0; i < N * N; i++) { const v = parseInt(px[i], 16); if (!v) continue; x.fillStyle = sil ? silCol : colors[v - 1]; x.fillRect(i % N, i / N | 0, 1, 1) }
-  return c;
+  for (let i = 0; i < a.px.length; i++) { const v = a.px[i]; if (!v) continue; x.fillStyle = sil ? silCol : (a.cols[v] || '#888888'); x.fillRect(i % a.w, i / a.w | 0, 1, 1) }
+  return cv;
 }
 const artCache = new Map();
 export function artURL(c, sil) {
-  const k = c.id + (sil ? ':s' : '');
-  if (!artCache.has(k)) artCache.set(k, artCanvas(c.px, colorsOf(c), sil).toDataURL());
+  const k = (c.id || '') + '|' + (c.art || c.px || '') + (sil ? ':s' : '');
+  if (!artCache.has(k)) artCache.set(k, artCanvas(c, sil).toDataURL());
   return artCache.get(k);
 }
-function colorsOf(c) { return c._colors || (PALETTES[c.tid] && PALETTES[c.tid][c.p] ? PALETTES[c.tid][c.p].colors : Array(15).fill('#888888')) }
+/* テーマのロゴ（art 形式）。読めなければ null */
+export function logoInfo(art) { const a = decodeArt(art); return a && a.w <= LOGO_MAX.w && a.h <= LOGO_MAX.h ? { w: a.w, h: a.h, url: artURL({ art }) } : null }
 
 /* ---------- カード（110×154ドット、カードレイアウトツールで決めた配置） ---------- */
 export const CW = 110, CH = 154, CB = 5, CC = 2;
@@ -159,7 +210,7 @@ export const loadCardFont = () => Promise.all([document.fonts.load(FONT, 'あ').
 const cardCache = new Map();
 export function clearCardCache() { cardCache.clear(); artCache.clear(); packCache.clear(); backURL = null }
 export function cardImg(c, mode) {
-  const key = [c.id, mode, c.star, c.attr, c.name, c.text, c.fan, c.p, c.no, c.tno].join('|');
+  const key = [c.id, mode, c.star, c.attr, c.name, c.text, c.fan, c.p, c.no, c.tno, (c.art || c.px || '').length].join('|');
   if (c.id !== '_p' && cardCache.has(key)) return cardCache.get(key);
   const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
   const full = mode === 'full', sil = mode === 'sil';
@@ -169,7 +220,7 @@ export function cardImg(c, mode) {
   const bg = full && c.star && bgImgs[Math.min(c.star, 4)];
   if (bg) x.drawImage(bg, CB, CB, CW - 2 * CB, CH - 2 * CB);   // 小さい画像も枠の内側いっぱいに引き伸ばす
   const A = LAY.art;
-  x.drawImage(artCanvas(c.px, colorsOf(c), sil), A.x, A.y, N * A.scale, N * A.scale);
+  x.drawImage(artCanvas(c, sil), A.x, A.y, N * A.scale, N * A.scale);
   if (full && c.star) drawStars(x, c.star);
   else if (!sil && c.fan) drawMark(x, FAN_MARK);
   if (c.no) drawDigits(x, fmtNo(c), LAY.no.x, LAY.no.y, sil ? quiet : ink);
@@ -204,7 +255,7 @@ export function cardBackURL() {
 export const PW = 96, PH = 128;
 const packCache = new Map();
 export function packURL(p, cover) {
-  const key = p.no + '|' + p.name + '|' + (cover ? cover.px.slice(0, 32) : '');
+  const key = p.no + '|' + p.name + '|' + (cover ? (cover.art || cover.px || '').slice(0, 80) : '');
   if (packCache.has(key)) return packCache.get(key);
   const cv = document.createElement('canvas'); cv.width = PW; cv.height = PH; const x = cv.getContext('2d'); x.imageSmoothingEnabled = false;
   const fg = cssv('--fg'), mid = '#4a4a4a';
@@ -220,7 +271,7 @@ export function packURL(p, cover) {
     }
   }
   const ay = 18, ax = (PW - 64) / 2;
-  if (cover) { x.fillStyle = '#ffffff'; x.fillRect(ax - 2, ay - 2, 68, 68); x.drawImage(artCanvas(cover.px, colorsOf(cover)), ax, ay, 64, 64) }
+  if (cover) { x.fillStyle = '#ffffff'; x.fillRect(ax - 2, ay - 2, 68, 68); x.drawImage(artCanvas(cover), ax, ay, 64, 64) }
   tctx.font = FONT;
   const lines = wrapText(p.name || '', PW - 12).slice(0, 2), ty = lines.length > 1 ? 88 : 94;
   lines.forEach((l, i) => { const w = Math.ceil(tctx.measureText(l).width); ptext(x, l, (PW - w) / 2 | 0, ty + i * 12, fg) });

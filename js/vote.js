@@ -82,7 +82,8 @@ $('#voteGrid').addEventListener('click', async e => {
     const id = d.dataset.del; if (delArm !== id) { delArm = id; render(); return }
     delArm = null;
     try {
-      await updateDoc(doc(db, 'themes', S.theme.id, 'cards', id), { deleted: true, px: '0'.repeat(N * N), name: '', text: '', by: '', updatedAt: serverTimestamp() });
+      const old = S.cards.get(id);
+      await updateDoc(doc(db, 'themes', S.theme.id, 'cards', id), { deleted: true, art: '', ...(old && old.px ? { px: '0'.repeat(N * N) } : {}), name: '', text: '', by: '', updatedAt: serverTimestamp() });
       const c = S.cards.get(id); if (c) c.deleted = true; S.count = Math.max(0, S.count - 1); forgetCount();
       forgetFeed(); keep(sort, feed());   // 一覧の控えも直す（ほかの並び順の控えは捨てる）
       renderHeader(); render(); toast('削除しました');
