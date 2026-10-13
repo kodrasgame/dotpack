@@ -1,6 +1,6 @@
-/* カードを X でシェアする。スマホは画像つきで共有（X のアプリを選べる）、パソコンは X の投稿画面をカードのページのリンクつきで開く */
+/* カードを X でシェアする。スマホは画像つきで共有（X のアプリを選べる）、パソコンは画像をコピーしてから X の投稿画面をカードのページのリンクつきで開く */
 import { CW, CH, cardImg, fmtNo } from './cards.js';
-import { ROOT, cardPath } from './core.js';
+import { ROOT, cardPath, toast } from './core.js';
 
 const mode = c => c.star ? 'full' : 'pending';
 const fileName = c => `dotpack-${fmtNo(c).slice(3)}.png`;
@@ -13,14 +13,22 @@ async function cardPNG(c, scale = 4) {
 }
 export async function shareCard(c, mine) {
   const url = ROOT + cardPath(c);
-  const text = mine ? `ドット絵カード「${c.name}」を描きました！\n#ドットパック` : `「${c.name}」${c.anon || !c.by ? '' : ` by ${c.by}`}\n#ドットパック`;
+  const tags = '#ドットパック #ドット絵 #pixelart';
+  const text = mine ? `ドット絵カード「${c.name}」を描きました！\n${tags}` : `「${c.name}」${c.anon || !c.by ? '' : ` by ${c.by}`}\n${tags}`;
   if (matchMedia('(pointer: coarse)').matches && navigator.canShare) {
     try {
       const file = new File([await cardPNG(c)], fileName(c), { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + '\n' + url }); return }
     } catch (e) { if (e.name === 'AbortError') return }
   }
-  window.open(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
+  /* パソコン：カード画像をコピーしておき、X の投稿画面で貼ってもらう（X の投稿画面には外から画像を渡せないため）。
+     お知らせを読めるように、少し待ってから投稿画面を開く */
+  const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  let copied = false;
+  try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': await cardPNG(c) })]); copied = true } catch (e) { }
+  if (!copied) return window.open(intent, '_blank', 'noopener');
+  toast(`画像をコピーしました。投稿画面で ${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'}+V で貼れます`);
+  setTimeout(() => window.open(intent, '_blank', 'noopener'), 1200);
 }
 export async function saveCardImage(c) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(await cardPNG(c)); a.download = fileName(c);
