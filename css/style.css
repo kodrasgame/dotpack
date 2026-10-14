@@ -203,6 +203,18 @@ input[type="checkbox"]:checked,input[type="radio"]:checked{background:var(--fg);
 
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:4px 16px;z-index:30;white-space:nowrap}
 
+/* あそびかた（4コマ、js/layout.js） */
+.ht{position:fixed;inset:0;z-index:40;background:rgba(28,28,28,.6);overflow-y:auto;display:flex;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.ht[hidden]{display:none}
+.ht-in{margin:auto;width:100%;max-width:660px;background:var(--bg);border:2px solid var(--fg);padding:16px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.ht-in h2{margin:0;font-size:30px;line-height:1.2}
+.ht-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:16px;counter-reset:ht}
+.ht-grid li{display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.3;counter-increment:ht}
+.ht-grid img{width:240px;max-width:100%;height:auto;border:2px solid var(--fg);image-rendering:pixelated;image-rendering:crisp-edges;margin-bottom:6px}
+.ht-grid b::before{content:counter(ht) '. '}
+.ht-grid small{color:var(--muted);font-size:20px}
+.ht .btn{min-width:200px}
+@media (max-width:660px){.ht-grid{grid-template-columns:minmax(0,1fr)}.ht-in h2{font-size:24px}}
 /* footer / ad */
 .foot{margin-top:24px;padding-top:16px;border-top:2px solid var(--fg);color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 20px}
 .ad{margin-top:56px;min-height:100px;border:2px dotted var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:16px;position:relative;color:var(--muted);background:var(--dots)}
