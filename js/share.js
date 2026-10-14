@@ -4,8 +4,8 @@ import { ROOT, cardPath, toast } from './core.js';
 
 const mode = c => c.star ? 'full' : 'pending';
 const fileName = c => `dotpack-${fmtNo(c).slice(3)}.png`;
-/* カードの画像を4倍に拡大したPNG（ドットがぼやけないように） */
-async function cardPNG(c, scale = 4) {
+/* カードの画像を8倍に拡大したPNG（880×1232。ドットがぼやけないように） */
+async function cardPNG(c, scale = 8) {
   const im = new Image(); im.src = cardImg(c, mode(c)); await im.decode();
   const cv = document.createElement('canvas'); cv.width = CW * scale; cv.height = CH * scale;
   const x = cv.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(im, 0, 0, cv.width, cv.height);

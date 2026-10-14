@@ -3,7 +3,7 @@ import {
   auth, db, CONFIGURED, MOCK, onAuthStateChanged, signInAnonymously,
   doc, getDoc, getDocs, setDoc, collection, query, where, limit, serverTimestamp, writeBatch, increment, getCountFromServer
 } from './fb.js';
-import { $, esc, N, fmtNo, PALETTES, LEGACY, B64, clearCardCache, loadCardFont, logoInfo } from './cards.js';
+import { $, esc, N, fmtNo, PALETTES, LEGACY, B64, artColors, clearCardCache, loadCardFont, logoInfo } from './cards.js';
 import { PACK_CHARGE_HOURS, PACK_MAX, PACK_PER_VOTE } from './config.js';
 
 /* サイトのいちばん上（dotpack/）の場所。ページのリンクやファイルの読み込みに使う */
@@ -52,8 +52,10 @@ export const cardPath = c => 'card/?no=' + fmtNo(c).slice(3);
 /* 「これを元に作る」：描きかけの下書きに元ネタだけ書き足して、つくるページへ */
 export function makeFrom(c) {
   const base = { id: c.id, tid: c.tid, tno: c.tno, no: c.no, name: c.name, by: c.anon ? '―' : c.by, art: c.art || null, px: c.px || null, p: c.p ?? null };
-  const d = store.get('dp-draft', null);
-  store.set('dp-draft', d && d.t === S.theme.id ? { ...d, base } : { t: S.theme.id, v: 2, px: B64[0].repeat(N * N), colors: null, base, name: '', text: '' });
+  const d = store.get('dp-draft', null), colors = artColors(c);
+  /* 描きかけの絵がなければ、パレットを元ネタと同じ色にする（描きかけがあれば、その絵の色を変えないようにそのまま） */
+  const blank = !d || d.t !== S.theme.id || d.v !== 2 || !/[^A]/.test(d.px || '');
+  store.set('dp-draft', blank ? { t: S.theme.id, v: 2, px: B64[0].repeat(N * N), colors, base, name: d && d.t === S.theme.id ? d.name || '' : '', text: d && d.t === S.theme.id ? d.text || '' : '' } : { ...d, base });
   toastNext('元にする作品を設定しました'); go('make/');
 }
 

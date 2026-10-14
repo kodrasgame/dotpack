@@ -26,7 +26,7 @@ function openMake() {
   if (!draftLoaded) {
     draftLoaded = true;
     if (draft && draft.t === S.theme.id) {
-      if (draft.v === 2) { ed.px = draft.px; ed.colors = pad16(draft.colors) }
+      if (draft.v === 2) { ed.px = draft.px; ed.colors = draft.colors ? pad16(draft.colors) : null }
       else if (typeof draft.px === 'string') {   // 前の形式の下書き（16進＋パレット番号）を読みかえる
         ed.px = Array.from(draft.px, ch => B64[parseInt(ch, 16) ? parseInt(ch, 16) + 2 : 0]).join(''); ed.colors = presetColors(draft.p || 0);
       }

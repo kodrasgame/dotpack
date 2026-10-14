@@ -71,6 +71,13 @@ export function decodeArt(s) {
   const r = { w, h, colors, px }; if (artMemo.size > 2000) artMemo.clear(); artMemo.set(s, r); return r;
 }
 /* カード（または表紙）の絵を { w, h, px（値の並び）, cols（値→色） } にする */
+/* そのカードの16色（「これを元に作る」の初期パレット用）。前の形式のカードはテーマのパレット（15色） */
+export function artColors(c) {
+  const a = c && c.art && decodeArt(c.art);
+  if (a) return a.colors.slice();
+  const src = c && (LEGACY[c.tid] || PALETTES[c.tid]), pal = src && src[c.p] ? src[c.p].colors : null;
+  return pal ? pal.slice(0, NCOL) : null;
+}
 function artOf(c) {
   const a = c && c.art && decodeArt(c.art);
   if (a) return { w: a.w, h: a.h, px: a.px, cols: [null, ...BASE, ...a.colors] };
