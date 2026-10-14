@@ -21,6 +21,7 @@
 <link rel="stylesheet" href="../css/style.css">
 <link rel="modulepreload" href="../js/fb.js">
 <link rel="modulepreload" href="../js/cards.js">
+<link rel="modulepreload" href="../js/picker.js">
 <link rel="modulepreload" href="../js/core.js">
 <link rel="modulepreload" href="../js/config.js">
 <link rel="modulepreload" href="../js/fbreal.js">
@@ -53,7 +54,15 @@
           <span class="zoom"><button class="tool" id="zOut" aria-label="縮小">－</button><output id="zLbl">×1</output><button class="tool" id="zIn" aria-label="拡大">＋</button></span>
         </div>
         <div class="pal" id="pal"></div>
-        <label class="colpick">選んだ色を変える<input type="color" id="colPick"></label>
+        <div class="cpick" id="cpick">
+          <canvas id="cpWheel" aria-label="選んだ色を変える"></canvas>
+          <div class="cpside">
+            <label class="cphex">#<input id="cpHex" maxlength="7" autocomplete="off" spellcheck="false" aria-label="カラーコード"></label>
+            <input class="cpbar" type="range" id="cpS" min="0" max="100" step="1" aria-label="彩度">
+            <input class="cpbar" type="range" id="cpV" min="0" max="100" step="1" aria-label="明度">
+            <input class="cpbar" type="range" id="cpH" min="0" max="360" step="1" aria-label="明るさを変えずに色合いを変える">
+          </div>
+        </div>
       </div>
       <div class="side">
         <div id="preview"></div>

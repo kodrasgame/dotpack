@@ -1,6 +1,7 @@
 /* つくるページ（ドット絵のエディタと投稿） */
 import { db, doc, collection, runTransaction, serverTimestamp } from './fb.js';
 import { $, esc, N, NAME_MAX, TEXT_MAX, fmtNo, nameW, clipW, artURL, cardHTML, B64, BASE, NCOL, encodeArt, hex6 } from './cards.js';
+import { makePicker, hsvToHex, luma, sameLuma } from './picker.js';
 import { S, store, boot, go, forgetCount, forgetFeed, authorName, cardPath } from './core.js';
 
 /* ---------- つくる（エディタ） ---------- */
@@ -130,11 +131,42 @@ function renderPal() {
   const sw = (c, v, label) => `<button class="sw" data-c="${v}" style="background:${c}" aria-label="${label}" aria-pressed="${v === ed.color}"></button>`;
   pal.innerHTML = (useBW() ? `<div class="sw-row">${sw(BASE[0], 1, '黒')}${sw(BASE[1], 2, '白')}</div>` : '')
     + `<div class="sw-row">${ed.colors.map((c, k) => sw(c, k + 3, '色' + (k + 1))).join('')}</div>`;
-  const free = ed.color >= 3; $('#colPick').disabled = !free; if (free) $('#colPick').value = ed.colors[ed.color - 3];
+  const free = ed.color >= 3;
+  $('#cpick').classList.toggle('off', !free); $('#cpWheel').setAttribute('aria-disabled', !free); $('#cpHex').disabled = !free;
+  $('#cpS').disabled = $('#cpV').disabled = $('#cpH').disabled = !free;
+  if (free) { picker.set(ed.colors[ed.color - 3]); if (document.activeElement !== $('#cpHex')) $('#cpHex').value = ed.colors[ed.color - 3].slice(1); renderBars() }
 }
+/* 彩度・明度のバー：つまみの位置と、バーの色（今の色合いで、左が0・右が最大） */
+function renderBars() {
+  const c = picker.hsv(), S = $('#cpS'), V = $('#cpV');
+  if (document.activeElement !== S) S.value = Math.round(c.s * 100);
+  if (document.activeElement !== V) V.value = Math.round(c.v * 100);
+  S.style.setProperty('--bar', `linear-gradient(90deg,${hsvToHex({ ...c, s: 0 })},${hsvToHex({ ...c, s: 1 })})`);
+  V.style.setProperty('--bar', `linear-gradient(90deg,#000,${hsvToHex({ ...c, v: 1 })})`);
+  // 明るさそのままで色合いだけ：動かしはじめの鮮やかさと明るさ（lumaBase）を基準にする
+  const H = $('#cpH'), b = lumaBase || { s: c.s, L: luma(hsvToHex(c)) };
+  if (document.activeElement !== H) H.value = Math.round(c.h);
+  H.style.setProperty('--bar', `linear-gradient(90deg,${Array.from({ length: 13 }, (_, i) => hsvToHex(sameLuma(i * 30, b.s, b.L))).join(',')})`);
+}
+let lumaBase = null;
 pal.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; ed.color = +b.dataset.c; if (ed.tool === 'erase' || ed.tool === 'move') ed.tool = 'pen'; renderPal(); renderTools() });
-$('#colPick').addEventListener('input', e => { if (ed.color < 3) return; ed.colors[ed.color - 3] = hex6(e.target.value); renderPal(); drawEditor(); renderPreview() });
-$('#colPick').addEventListener('change', saveDraft);
+/* 色を変える：輪と四角で選ぶか、カラーコード（6けた）を入れる */
+function setColor(hex) { if (ed.color < 3) return; ed.colors[ed.color - 3] = hex6(hex); renderPal(); drawEditor(); renderPreview() }
+const picker = makePicker($('#cpWheel'), setColor);
+$('#cpWheel').addEventListener('change', saveDraft);
+$('#cpHex').addEventListener('input', e => {
+  const v = e.target.value.replace(/[^0-9a-f]/gi, '').slice(0, 6); if (e.target.value !== v) e.target.value = v;
+  if (v.length === 6) { setColor('#' + v.toLowerCase()); saveDraft() }
+});
+$('#cpHex').addEventListener('blur', renderPal);   // 途中で離れたら今の色に戻す
+$('#cpS').addEventListener('input', e => picker.part({ s: e.target.value / 100 }));
+$('#cpV').addEventListener('input', e => picker.part({ v: e.target.value / 100 }));
+$('#cpH').addEventListener('input', e => {
+  if (!lumaBase) { const c = picker.hsv(); lumaBase = { s: c.s, L: luma(hsvToHex(c)) } }
+  picker.part(sameLuma(+e.target.value % 360, lumaBase.s, lumaBase.L));
+});
+$('#cpH').addEventListener('change', () => { lumaBase = null; saveDraft(); renderBars() });
+$('#cpS').addEventListener('change', saveDraft); $('#cpV').addEventListener('change', saveDraft);
 function renderBase() {
   const c = ed.base; $('#baseBox').hidden = !c; if (!c) return;
   $('#baseImg').src = artURL(c); $('#baseName').textContent = c.name; $('#baseNo').textContent = fmtNo(c) + '　by ' + c.by;
