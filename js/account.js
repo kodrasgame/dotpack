@@ -1,11 +1,12 @@
 /* アカウントページ（作者名とGoogle連携） */
 import { auth, GoogleAuthProvider, linkWithPopup, signInWithCredential, signOut } from './fb.js';
 import { $ } from './cards.js';
-import { S, V, store, toast, boot, isGoogle, saveOwned, pushUser, ownedPending, mergeOwnedFromServer, flushVotes, saveLocalVotes } from './core.js';
+import { S, ROOT, V, store, toast, boot, isGoogle, saveOwned, pushUser, ownedPending, mergeOwnedFromServer, flushVotes, saveLocalVotes } from './core.js';
 
 /* ---------- アカウント ---------- */
 function renderAccount() {
   if (!S.user) return;
+  $('#aMine').href = ROOT + 'author/?u=' + encodeURIComponent(S.user.uid);
   $('#aName').value = store.get('dp-name', '');
   const g = isGoogle();
   $('#aStatus').textContent = g ? `Googleアカウント（${S.user.email || ''}）と連携しています。集めたカードはどの端末でも見られます。` : 'まだGoogleアカウントと連携していません。いまのデータはこの端末のブラウザにだけ保存されています。';

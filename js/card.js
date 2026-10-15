@@ -1,7 +1,7 @@
 /* カード1枚ごとのページ（card/?no=0012-2）。投稿した直後は ?new=1 がつく */
 import { getDocs, query, where, limit } from './fb.js';
 import { $, esc, ATTR_L, fmtNo, parseNo, cardHTML } from './cards.js';
-import { S, ROOT, boot, visible, cardsCol, toCard, loadPack, makeFrom, cardPath } from './core.js';
+import { S, ROOT, authorHTML, boot, visible, cardsCol, toCard, loadPack, makeFrom, cardPath } from './core.js';
 import { shareCard, saveCardImage } from './share.js';
 
 const q = new URLSearchParams(location.search), n = parseNo(q.get('no') || ''), isNew = q.has('new');
@@ -32,7 +32,7 @@ async function render() {
   if (!document.querySelector('link[rel=canonical]')) document.head.insertAdjacentHTML('beforeend', `<link rel="canonical" href="${esc(ROOT + cardPath(c))}">`);
   const open = S.theme && c.tid === S.theme.id;
   const packName = open ? S.theme.name : (S.packIndex.find(p => p.tid === c.tid) || {}).name || '';
-  const rows = [['パック', esc(packName)], ['作品番号', esc(fmtNo(c))], ['作者', c.anon || !c.by ? '―' : esc(c.by)]];
+  const rows = [['パック', esc(packName)], ['作品番号', esc(fmtNo(c))], ['作者', authorHTML(c)]];
   if (c.star) rows.push(['系統・星', `${c.attr ? ATTR_L[c.attr] : '—'} ・ ${'★'.repeat(c.star)}`]);
   if (c.fan) rows.push(['収録', 'パック対象外']);
   if (c.baseNo) rows.push(['元ネタ', `<a class="linkbtn" href="${ROOT}${cardPath(parseNo(c.baseNo))}">${esc(c.baseNo)}</a>`]);

@@ -1,7 +1,7 @@
 /* 作品画面（カードを押したときに開く大きい表示）。投票と図鑑のページで使う */
 import { db, doc, getDoc } from './fb.js';
 import { $, esc, ATTR_L, fmtNo, parseNo, cardHTML } from './cards.js';
-import { S, ROOT, visible, cardById, cardsCol, toCard, loadPack, makeFrom, cardPath } from './core.js';
+import { S, ROOT, authorHTML, visible, cardById, cardsCol, toCard, loadPack, makeFrom, cardPath } from './core.js';
 import { shareCard } from './share.js';
 
 document.body.insertAdjacentHTML('beforeend', `<div id="dt" class="modal" hidden>
@@ -21,7 +21,7 @@ export function openDetail(id) {
   const c = cardById(id); if (!c) return; dtCard = c;
   const packName = S.theme && c.tid === S.theme.id ? S.theme.name : (S.packIndex.find(p => p.tid === c.tid) || {}).name || '';
   $('#dtCard').innerHTML = cardHTML(c, c.star ? 'full' : 'pending', '', 3);
-  const rows = [['パック', esc(packName)], ['作品番号', `<a class="linkbtn" href="${ROOT}${esc(cardPath(c))}">${esc(fmtNo(c))}</a>`], ['作者', c.anon ? '―' : esc(c.by)]];
+  const rows = [['パック', esc(packName)], ['作品番号', `<a class="linkbtn" href="${ROOT}${esc(cardPath(c))}">${esc(fmtNo(c))}</a>`], ['作者', authorHTML(c)]];
   if (c.star) rows.push(['系統・星', `${c.attr ? ATTR_L[c.attr] : '—'} ・ ${'★'.repeat(c.star)}`]);
   if (c.fan) rows.push(['収録', 'パック対象外']);
   let needBase = false;

@@ -48,6 +48,8 @@ export function capHTML(c) {
 }
 
 /* カード1枚ごとのページ（card/?no=0012-2） */
+/* 作者ページへのリンク（作者名を非表示にしたカードは「―」だけ） */
+export const authorHTML = c => c.anon || !c.by ? '―' : c.uid ? `<a class="linkbtn" href="${ROOT}author/?u=${encodeURIComponent(c.uid)}">${esc(c.by)}</a>` : esc(c.by);
 export const cardPath = c => 'card/?no=' + fmtNo(c).slice(3);
 /* 「これを元に作る」：描きかけの下書きに元ネタだけ書き足して、つくるページへ */
 export function makeFrom(c) {

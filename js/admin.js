@@ -227,7 +227,7 @@ async function exportPack(th, loaded) {
   const cards = (loaded || await loadCards(th.id, true)).filter(c => !c.deleted && !c.hidden && !c.fan && c.star);
   const pack = {
     no: th.no, tid: th.id, name: th.name, month: th.month, palettes: th.legacyPalettes || th.palettes, logo: th.logo || null,
-    cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', by: c.anon ? '' : c.by, anon: !!c.anon, ...artFields(c), star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
+    cards: cards.map(c => ({ id: c.id, no: c.no, name: c.name, text: c.text || '', uid: c.anon ? '' : c.uid, by: c.anon ? '' : c.by, anon: !!c.anon, ...artFields(c), star: c.star, attr: c.attr || null, base: c.base || null, baseNo: c.baseNo || null }))
   };
   const cover = cards.slice().sort((a, b) => b.star - a.star || (b.score || 0) - (a.score || 0))[0];
   let index = [];

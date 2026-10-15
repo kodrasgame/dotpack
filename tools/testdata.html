@@ -72,7 +72,7 @@ if (!['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
   for (let i = 1; i <= PACK_CARDS; i++) {
     const attr = ATTRS[i % 5], r = Math.random();
     const star = i <= 5 ? 4 : r < .15 ? 3 : r < .45 ? 2 : 1;   // 系統ごとに1枚ずつ★4
-    cards.push({ id: id(), no: i, name: pick(NAMES), text: '', by: pick(BY), anon: false, art: circle(pick(PALS).colors), star, attr, base: null, baseNo: null });
+    cards.push({ id: id(), no: i, name: pick(NAMES), text: '', uid: 'tester' + rnd(5), by: pick(BY), anon: false, art: circle(pick(PALS).colors), star, attr, base: null, baseNo: null });
   }
   const pack = { no: 1, tid: 't1', name: 'テスト用パック', month: '2026-09', palettes: PALS, cards };
   const index = [{ no: 1, tid: 't1', name: 'テスト用パック', month: '2026-09', count: cards.length, palettes: PALS, cover: { art: cards[0].art }, ids: cards.map(c => c.id) }];
