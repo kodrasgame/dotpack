@@ -65,6 +65,11 @@ function drawEditor() {
     cx.fillStyle = k === N / 2 ? 'rgba(128,128,128,.55)' : k % 8 === 0 ? 'rgba(128,128,128,.35)' : 'rgba(128,128,128,.16)';
     const p = k * CELL; cx.fillRect(p, 0, lw, cv.height); cx.fillRect(0, p, cv.width, lw);
   }
+  if (sel) {   // 範囲：黒と白の二重の線（どんな色の上でも見える）
+    const x = sel.x * CELL, y = sel.y * CELL, w = sel.w * CELL, h = sel.h * CELL, t = Math.max(2, lw * 2);
+    cx.lineWidth = t; cx.strokeStyle = '#000'; cx.strokeRect(x + t / 2, y + t / 2, w - t, h - t);
+    cx.setLineDash([t * 2, t * 2]); cx.strokeStyle = '#fff'; cx.strokeRect(x + t / 2, y + t / 2, w - t, h - t); cx.setLineDash([]);
+  }
 }
 function setPx(i, v) { ed.px = ed.px.slice(0, i) + B64[v] + ed.px.slice(i + 1) }
 function flood(i, v) {
@@ -75,6 +80,27 @@ function flood(i, v) {
   }
   ed.px = arr.join('');
 }
+/* 範囲：sel＝囲んだ四角（マス単位。動かすと絵の外にはみ出すこともある）。
+   float＝動かしているあいだの「下の絵（範囲を抜いたもの）」と「範囲の中身」。範囲を外すまで下の絵は消えない */
+let sel = null, float = null, selFrom = null;
+function liftSel() {   // 範囲の中身を持ち上げる（1回目に動かすとき）
+  const base = ed.px.split(''), clip = [];
+  for (let y = 0; y < sel.h; y++) for (let x = 0; x < sel.w; x++) {
+    const gx = sel.x + x, gy = sel.y + y, inside = gx >= 0 && gy >= 0 && gx < N && gy < N;
+    clip.push(inside ? ed.px[gy * N + gx] : B64[0]); if (inside) base[gy * N + gx] = B64[0];
+  }
+  float = { base: base.join(''), clip };
+}
+function placeSel() {   // 下の絵の上に、範囲の中身（透明でないマスだけ）を置く
+  const out = float.base.split('');
+  for (let y = 0; y < sel.h; y++) for (let x = 0; x < sel.w; x++) {
+    const gx = sel.x + x, gy = sel.y + y, ch = float.clip[y * sel.w + x];
+    if (ch !== B64[0] && gx >= 0 && gy >= 0 && gx < N && gy < N) out[gy * N + gx] = ch;
+  }
+  ed.px = out.join('');
+}
+function dropSel() { if (!sel) return; sel = null; float = null; renderTools(); drawEditor() }
+const inSel = c => sel && c.x >= sel.x && c.y >= sel.y && c.x < sel.x + sel.w && c.y < sel.y + sel.h;
 function cellAt(e) { const r = cv.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N); return (x < 0 || y < 0 || x >= N || y >= N) ? -1 : y * N + x }
 const ptrs = new Map(); let mode = null, stroke = false, lastCell = -1, shiftFrom = null;
 function rawCell(e) { const r = cv.getBoundingClientRect(); return { x: Math.floor((e.clientX - r.left) / r.width * N), y: Math.floor((e.clientY - r.top) / r.height * N) } }
@@ -95,8 +121,14 @@ function paint(e) {
 }
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 2) { if (stroke) { ed.px = ed.hist.pop(); stroke = false; drawEditor() } mode = 'pan'; return }
+  if (ptrs.size === 2) { if (stroke) { ed.px = ed.hist.pop(); stroke = false; if (mode === 'selmove') { sel.x = selFrom.sx; sel.y = selFrom.sy } drawEditor() } mode = 'pan'; return }
   if (ptrs.size > 2) return;
+  if (ed.tool === 'sel') {
+    const c = rawCell(e);
+    if (inSel(c)) { ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift(); stroke = true; if (!float) liftSel(); mode = 'selmove'; selFrom = { ...c, sx: sel.x, sy: sel.y }; return }
+    const cx0 = Math.max(0, Math.min(N - 1, c.x)), cy0 = Math.max(0, Math.min(N - 1, c.y));
+    sel = null; float = null; mode = 'selnew'; selFrom = { x: cx0, y: cy0 }; renderTools(); drawEditor(); return;
+  }
   if (ed.tool === 'move') { ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift(); stroke = true; mode = 'shift'; shiftFrom = { px: ed.px, ...rawCell(e) }; return }
   ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift(); stroke = true; lastCell = -1;
   mode = ed.tool === 'fill' ? null : 'draw'; paint(e);
@@ -105,6 +137,14 @@ cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
   if (mode === 'pan') { view.scrollLeft -= (e.clientX - p.x) / ptrs.size; view.scrollTop -= (e.clientY - p.y) / ptrs.size }
   else if (mode === 'draw') paint(e);
+  else if (mode === 'selnew') {
+    const c = rawCell(e), x = Math.max(0, Math.min(N - 1, c.x)), y = Math.max(0, Math.min(N - 1, c.y));
+    if (x !== selFrom.x || y !== selFrom.y || sel) { sel = { x: Math.min(x, selFrom.x), y: Math.min(y, selFrom.y), w: Math.abs(x - selFrom.x) + 1, h: Math.abs(y - selFrom.y) + 1 }; renderTools(); drawEditor() }
+  }
+  else if (mode === 'selmove') {
+    const c = rawCell(e), nx = selFrom.sx + c.x - selFrom.x, ny = selFrom.sy + c.y - selFrom.y;
+    if (nx !== sel.x || ny !== sel.y) { sel.x = nx; sel.y = ny; placeSel(); drawEditor() }
+  }
   else if (mode === 'shift') { const c = rawCell(e), px = shifted(shiftFrom.px, c.x - shiftFrom.x, c.y - shiftFrom.y); if (px !== ed.px) { ed.px = px; drawEditor() } }
   p.x = e.clientX; p.y = e.clientY;
 });
@@ -114,10 +154,19 @@ const endDraw = e => {
   mode = null; stroke = false; lastCell = -1;
 };
 cv.addEventListener('pointerup', endDraw); cv.addEventListener('pointercancel', endDraw);
-function renderTools() { document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === ed.tool)); view.classList.toggle('moving', ed.tool === 'move') }
-document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { ed.tool = b.dataset.tool; renderTools() });
-$('#undo').onclick = () => { if (ed.hist.length) { ed.px = ed.hist.pop(); drawEditor(); saveDraft(); renderPreview() } };
-$('#clear').onclick = () => { ed.hist.push(ed.px); ed.px = EMPTY; drawEditor(); saveDraft(); renderPreview() };
+function renderTools() { document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === ed.tool)); view.classList.toggle('moving', ed.tool === 'move'); $('#selDel').hidden = !sel }
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { ed.tool = b.dataset.tool; if (ed.tool !== 'sel') dropSel(); renderTools() });
+/* 範囲を消す：囲んだところを透明に */
+$('#selDel').onclick = () => {
+  if (!sel) return; ed.hist.push(ed.px); if (ed.hist.length > 50) ed.hist.shift();
+  if (!float) liftSel(); ed.px = float.base; dropSel(); saveDraft(); renderPreview();
+};
+document.addEventListener('keydown', e => {
+  if (!sel || e.target.closest('input,textarea')) return;
+  if (e.key === 'Escape') dropSel(); else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); $('#selDel').click() }
+});
+$('#undo').onclick = () => { if (ed.hist.length) { ed.px = ed.hist.pop(); sel = null; float = null; renderTools(); drawEditor(); saveDraft(); renderPreview() } };
+$('#clear').onclick = () => { ed.hist.push(ed.px); ed.px = EMPTY; sel = null; float = null; renderTools(); drawEditor(); saveDraft(); renderPreview() };
 /* おすすめパレット（テーマごと）：押すと16色をそのパレットの色にする（描いた絵の色もまとめて変わる） */
 function renderPals() {
   $('#pals').innerHTML = (S.theme.palettes || []).map((p, i) => `<button class="palbtn" data-p="${i}">${esc(p.name)}<span class="strip">${p.colors.map(c => `<i style="background:${esc(c)}"></i>`).join('')}</span></button>`).join('');
