@@ -20,7 +20,7 @@
   </aside>`) + `<footer class="foot"><a class="linkbtn" href="${R}terms/">利用規約</a><a class="linkbtn" href="${R}account/">アカウント</a><a class="linkbtn" href="${R}contact/">お問い合わせ</a><button class="linkbtn" data-howto>あそびかた</button></footer>`));
   /* あそびかた（4コマ）：初めて来たときだけ自動で出す。あとからは下の「あそびかた」で。
      中身は開くときに作る（絵 img/howto/1〜4.png も、そのとき初めて読み込む）。見たかどうかはこのブラウザに覚えるだけ */
-  const HT = [['みんなでつくるカードパック', '毎月テーマが決まるよ'], ['カードを描こう', '32×32 のドット絵で、テーマに合わせて'],
+  const HT = [['みんなでつくるカードパック', '毎月テーマが決まるよ'], ['カードを描こう', '32x32 のドット絵で、テーマに合わせて'],
     ['みんなのカードに投票しよう', '投票すると、パックを開けられる回数が増える'], ['票の数でレアリティが決まる', '月末に集計して、翌月からパックで引けるよ']];
   function howto() {
     let m = document.getElementById('howto');
