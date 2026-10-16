@@ -1,11 +1,8 @@
 /* 投票ページ（サイトのいちばん上） */
 import { db, doc, getDoc, getDocs, updateDoc, query, orderBy, limit, startAfter, serverTimestamp } from './fb.js';
-import { $, esc, ATTRS, N, cardHTML } from './cards.js';
-import { PACK_PER_VOTE } from './config.js';
-import {
-  S, V, store, memo, toast, boot, renderHeader, forgetCount, forgetFeed, visible, capHTML, cardsCol, toCard,
-  saveLocalVotes, flushVotes, voteReward, packsLeft, rew
-} from './core.js';
+import { $, esc, N } from './cards.js';
+import { S, store, memo, toast, boot, renderHeader, forgetCount, forgetFeed, visible, cardsCol, toCard } from './core.js';
+import { voteCell, voteClick } from './votecell.js';
 import { openDetail } from './detail.js';
 
 /* 受付中のカード：並び順ごとに PAGE 枚ずつ読む（「もっと見る」で続きを読む） */
@@ -57,14 +54,13 @@ function render() {
   document.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === sort));
   $('#voteSort').hidden = !S.theme;
   if (!S.theme) { $('#voteNote').textContent = ''; $('#voteGrid').innerHTML = S.loaded ? '<p class="empty">いまは投稿・投票を受け付けていません。</p>' : '<p class="empty">読み込み中…</p>'; $('#voteMore').hidden = true; return }
-  const f = feed(), uid = S.user && S.user.uid;
+  const f = feed();
   if (!f.ids.length && !f.done && !f.loading && !f.failed) more();   // 最初の1ページ
   const list = f.ids.map(id => S.cards.get(id)).filter(visible);
   $('#voteMore').hidden = f.done; $('#voteMore').disabled = !!f.loading; $('#voteMore').textContent = f.loading ? '読み込み中…' : 'もっと見る';
-  $('#voteNote').innerHTML = `あなたの投票でレアリティが決まる！<br>投票するとパック開封回数が増えます（あと <b>${packsLeft()}</b> 回）`;
-  $('#voteGrid').innerHTML = list.map(c => `<div class="vcell">${cardHTML(c, 'pending', c.uid !== uid && !rew[c.id] ? `<span class="cnt plus1">+${PACK_PER_VOTE}</span>` : '')}${capHTML(c)}${c.uid === uid ?
-    `<div class="mine">あなたの作品<button class="linkbtn" data-del="${esc(c.id)}">${delArm === c.id ? 'もう一度押すと削除' : '削除'}</button></div>` :
-    `<div class="vbtns">${ATTRS.map(a => `<button class="vb a-${a.k}" data-id="${esc(c.id)}" data-k="${a.k}" aria-pressed="${S.myVotes[c.id] === a.k}">${a.l}</button>`).join('')}</div>`}</div>`).join('')
+  $('#voteNote').textContent = 'あなたの投票でレアリティが決まる！';
+  const mine = c => `<div class="mine">あなたの作品<button class="linkbtn" data-del="${esc(c.id)}">${delArm === c.id ? 'もう一度押すと削除' : '削除'}</button></div>`;
+  $('#voteGrid').innerHTML = list.map(c => voteCell(c, { mine })).join('')
     || (f.done ? '<p class="empty">まだ投稿がありません。右上の「＋つくる」から最初の1枚をどうぞ。</p>' : f.loading && !f.ids.length ? '<p class="empty">読み込み中…</p>' : '');
 }
 
@@ -91,16 +87,7 @@ $('#voteGrid').addEventListener('click', async e => {
     catch (err) { toast('削除できませんでした') }
     return;
   }
-  const b = e.target.closest('.vb');
-  if (b) {
-    if (!S.votesReady) return;
-    const id = b.dataset.id, k = b.dataset.k;
-    if (S.myVotes[id] === k) delete S.myVotes[id]; else S.myVotes[id] = k;
-    saveLocalVotes(true);
-    if (S.myVotes[id] && voteReward(id)) toast(`パック +${PACK_PER_VOTE}（あと ${packsLeft()} 回）`);
-    V.dirty = true; clearTimeout(V.timer); V.timer = setTimeout(flushVotes, 3000);
-    render(); return;
-  }
+  if (voteClick(e)) { render(); return }
   if (e.target.closest('button')) return;
   const card = e.target.closest('.card[data-cid]'); if (card) openDetail(card.dataset.cid);
 });

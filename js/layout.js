@@ -12,7 +12,7 @@
     <div><div class="theme-lbl" id="thLbl"></div><h1 class="theme-name" id="thName"></h1></div>
     <div class="theme-meta" id="thMeta"></div>
   </header>
-  <nav><a href="${R || './'}"${cur('vote')}>投票</a><a href="${R}pack/"${cur('pack')}>パック</a><a href="${R}dex/"${cur('dex')}>図鑑</a></nav>`);
+  <nav><a href="${R || './'}"${cur('vote')}>投票</a><a href="${R}pack/"${cur('pack')}>パック</a><a href="${R}dex/"${cur('dex')}>図鑑</a><a class="nav-pk" id="navPk" href="${R}pack/"></a></nav>`);
   document.body.insertAdjacentHTML('beforeend', '<div id="toast" hidden></div>');
   const info = ['terms', 'contact', 'account'].includes(page);
   document.addEventListener('DOMContentLoaded', () => wrap.insertAdjacentHTML('beforeend', (info ? '' : `<aside class="ad">

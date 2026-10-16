@@ -1,11 +1,12 @@
 /* 作者ページ（author/?u=アカウントの番号）：その人が描いたカードの一覧。
    投票中（今月）のカードは Firestore から、その人の分だけ読む（最大50枚）。
    パックに収録されたカードは packs/ の JSON から探す。持っているカードは絵を、持っていないカードはシルエットと「〇月のパック」を出す。
-   作者名を非表示にしたカード・削除・非表示のカードは出さない */
+   作者名を非表示にしたカード・削除・非表示のカードは出さない。投票中のカードはここからも投票できる（js/votecell.js） */
 import { getDocs, query, where, limit } from './fb.js';
 import { $, esc, cardHTML } from './cards.js';
 import { S, boot, cardsCol, toCard, visible, loadPack, monthLabel } from './core.js';
 import { openDetail } from './detail.js';
+import { voteCell, voteClick } from './votecell.js';
 
 const uid = new URLSearchParams(location.search).get('u') || '';
 const OK = /^[A-Za-z0-9_-]{1,128}$/.test(uid);
@@ -35,13 +36,13 @@ function render() {
   document.title = `${name || '作者'}の作品｜ドットパック`;
   $('#auName').innerHTML = latest ? `${esc(name)}の作品${me ? '<small>（あなた）</small>' : ''}` : '作品が見つかりません';
   let h = '';
-  if (open.length) h += `<h3 class="au-h">投票中</h3><div class="grid">${open.map(c => `<div class="cw">${cardHTML(c, 'pending')}</div>`).join('')}</div>`;
+  if (open.length) h += `<h3 class="au-h">投票中</h3><div class="grid">${open.map(c => voteCell(c, { cap: false })).join('')}</div>`;
   if (packed.length) h += `<h3 class="au-h">パックに収録</h3><div class="grid">${packed.map(({ c, pi }) => {
     const mine = S.owned[c.id], label = `${monthLabel(pi.month)}のパック`;
     return `<div class="cw">${mine ? cardHTML(c, 'full') : cardHTML(c, 'sil')}<div class="cap"><span>${esc(label)}${mine ? '' : 'で出るよ'}</span></div></div>`;
   }).join('')}</div>`;
   $('#auBody').innerHTML = h || (latest ? '' : '<p class="empty">この作者の作品はまだありません。</p>');
 }
-$('#auBody').addEventListener('click', e => { const card = e.target.closest('.card[data-cid]'); if (card) openDetail(card.dataset.cid) });
+$('#auBody').addEventListener('click', e => { if (voteClick(e)) return render(); if (e.target.closest('button')) return; const card = e.target.closest('.card[data-cid]'); if (card) openDetail(card.dataset.cid) });
 
-boot({ render });
+boot({ render, votes: true });

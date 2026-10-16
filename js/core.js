@@ -44,7 +44,7 @@ export const isGoogle = () => !!(S.user && S.user.providerData.some(p => p.provi
 export const authorName = () => store.get('dp-name', '') || 'ななしさん';
 export const visible = c => !!c && !c.deleted && !c.hidden;
 export function capHTML(c) {
-  return `<div class="cap"><span>by ${c.anon ? '―' : esc(c.by)}</span></div>${c.baseNo ? `<div class="cap-base">元ネタ ${esc(c.baseNo)}</div>` : ''}`;
+  return `<div class="cap"><span>by ${authorHTML(c)}</span></div>${c.baseNo ? `<div class="cap-base">元ネタ ${esc(c.baseNo)}</div>` : ''}`;
 }
 
 /* カード1枚ごとのページ（card/?no=0012-2） */
@@ -199,7 +199,10 @@ window.addEventListener('pagehide', flushVotes);
 const HOUR = 36e5, CHARGE = PACK_CHARGE_HOURS * HOUR;
 export const charge = store.get('dp-charge', { n: PACK_MAX, t: Date.now(), b: 0 });
 export const rew = store.get('dp-rew', {});   // 投票で回数をもらった作品 id -> 1
-function saveCharge() { store.set('dp-charge', charge); store.set('dp-rew', rew); saveOwned() }
+function saveCharge() { store.set('dp-charge', charge); store.set('dp-rew', rew); saveOwned(); showPacks() }
+/* タブの右端の「パック開封 ○回」（js/layout.js の #navPk） */
+export function showPacks() { const el = document.getElementById('navPk'); if (el) el.innerHTML = `<span class="pk-l">パック</span>開封 <b>${packsLeft()}</b>回` }
+setInterval(showPacks, 30000);
 function tick() {
   const now = Date.now();
   if (charge.n >= PACK_MAX) { charge.t = now; return }
@@ -265,7 +268,7 @@ export async function mergeOwnedFromServer() {
 /* ---------- 起動 ----------
    render：このページの描き直し。votes：このページで自分の票を使うか。onUser：アカウントが変わったとき */
 export function boot({ render = () => { }, votes = false, onUser = () => { } } = {}) {
-  renderHeader();
+  renderHeader(); showPacks();
   try { const t = sessionStorage.getItem('dp-toast'); if (t) { sessionStorage.removeItem('dp-toast'); toast(t) } } catch (e) { }
   if (!CONFIGURED) { toast('js/config.js に Firebase の設定を書いてください'); return }
   let shown = false;
@@ -284,7 +287,7 @@ export function boot({ render = () => { }, votes = false, onUser = () => { } } =
     firstUser = false;
     try { await Promise.all([loadMyVotes(votes), mergeOwnedFromServer()]) } catch (e) { console.warn(e) }
     S.votesReady = true;
-    render();
+    showPacks(); render();
   });
   loadCardFont().then(() => { clearCardCache(); if (shown) render() });
 }
